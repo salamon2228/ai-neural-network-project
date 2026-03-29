@@ -171,7 +171,7 @@ html = r'''<!DOCTYPE html>
             <button class="tab" onclick="showTab('generate')" data-i18n="tab_generate">Генерация</button>
             <button class="tab" onclick="showTab('compare')" data-i18n="tab_compare">Сравнение</button>
             <button class="tab" onclick="showTab('models')" data-i18n="tab_models">Модели</button>
-            <button class="tab" onclick="showTab('autopilot')" data-i18n="tab_autopilot" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;">Автопилот</button>
+            <button class="tab" onclick="showTab('autopilot')" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;position:relative;"><span data-i18n="tab_autopilot">Автопилот</span> <span style="font-size:0.6em;background:#f59e0b;color:#000;padding:1px 5px;border-radius:8px;font-weight:700;vertical-align:super;">BETA</span></button>
         </div>
 
         <!-- ПОМОЩЬ -->
@@ -457,8 +457,14 @@ html = r'''<!DOCTYPE html>
 
         <!-- АВТОПИЛОТ -->
         <div id="autopilot" class="tab-content">
-            <h2 data-i18n="autopilot_title" style="background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">LLM Автопилот</h2>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <h2 data-i18n="autopilot_title" style="background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;">LLM Автопилот</h2>
+                <span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font-size:0.7em;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;">BETA</span>
+            </div>
             <p data-i18n="autopilot_desc">Опишите цель — AI подберёт данные, создаст и обучит модель автоматически</p>
+            <div style="background:#f59e0b15;border:1px solid #f59e0b44;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.85em;color:#f59e0b;">
+                <span style="font-weight:700;">BETA</span> — <span data-i18n="autopilot_beta_notice">Эта функция в режиме бета-тестирования. Результаты могут быть нестабильными. Требуется API ключ от OpenAI, Anthropic или локальная LLM.</span>
+            </div>
 
             <div class="info-card">
                 <h3 data-i18n="autopilot_provider_title">Настройки LLM</h3>
@@ -1165,6 +1171,7 @@ var TRANSLATIONS = {
         autopilot_log: 'Журнал действий',
         autopilot_enter_goal: 'Введите цель для автопилота',
         autopilot_enter_key: 'Введите API ключ',
+        autopilot_beta_notice: 'Эта функция в режиме бета-тестирования. Результаты могут быть нестабильными. Требуется API ключ от OpenAI, Anthropic или локальная LLM.',
         autopilot_state_idle: 'Не запущен',
         autopilot_state_planning: 'Планирование...',
         autopilot_state_executing: 'Выполнение действий...',
@@ -1316,6 +1323,7 @@ var TRANSLATIONS = {
         autopilot_log: 'Action Log',
         autopilot_enter_goal: 'Enter a goal for the autopilot',
         autopilot_enter_key: 'Enter API key',
+        autopilot_beta_notice: 'This feature is in beta testing. Results may be unstable. Requires an API key from OpenAI, Anthropic, or a local LLM.',
         autopilot_state_idle: 'Not running',
         autopilot_state_planning: 'Planning...',
         autopilot_state_executing: 'Executing actions...',
