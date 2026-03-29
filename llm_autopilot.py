@@ -334,8 +334,10 @@ class LLMProvider:
             # <function=name>{"arg": "val"}</function>
             # <function=name,{"arg": "val"}</function>
             # <function=name>{$"arg": "val"}</function>
+            # <function=name[]{"arg": "val"}</function>
+            # <function=name() {"arg": "val"}</function>
             import re
-            match = re.search(r'<function=(\w+)[>,\s]\s*(\{.*?\})\s*</function>', failed, re.DOTALL)
+            match = re.search(r'<function=(\w+)[^{]*(\{.*\})\s*</function>', failed, re.DOTALL)
             if match:
                 func_name = match.group(1)
                 try:
