@@ -472,7 +472,7 @@ html = r'''<!DOCTYPE html>
                     <div class="form-group">
                         <label data-i18n="autopilot_provider">Провайдер:</label>
                         <select id="ap_provider" onchange="updateProviderFields()">
-                            <option value="google_colab" data-i18n-option="autopilot_opt_colab">Google Colab (Free)</option>
+                            <option value="groq" data-i18n-option="autopilot_opt_groq">Groq (Free / Бесплатно)</option>
                             <option value="openai">OpenAI (GPT-4o)</option>
                             <option value="anthropic">Anthropic (Claude)</option>
                             <option value="openai_compatible" data-i18n-option="autopilot_opt_local">Local / Ollama / LM Studio</option>
@@ -1181,9 +1181,9 @@ var TRANSLATIONS = {
         autopilot_state_completed: 'Завершено!',
         autopilot_state_error: 'Ошибка',
         autopilot_state_stopped: 'Остановлен',
-        autopilot_opt_colab: 'Google Colab (Бесплатно)',
+        autopilot_opt_groq: 'Groq (Бесплатно)',
         autopilot_opt_local: 'Локальная / Ollama / LM Studio',
-        autopilot_help_google_colab: '<b>Бесплатная LLM через Google Colab (без регистрации):</b><br><br>1. Откройте <a href="https://colab.research.google.com/github/Slavikpro557/ai-neural-network-project/blob/main/colab_llm_server.ipynb" target="_blank" style="color:#667eea;text-decoration:underline;">ноутбук в Google Colab</a><br>2. Нажмите <b>Runtime → Run all</b> и подождите ~3-5 мин<br>3. Появится зелёная рамка с URL — скопируйте его<br>4. Вставьте URL в поле <b>Endpoint</b> выше<br><br>💡 Никакой регистрации не нужно (кроме Google аккаунта для Colab). GPU бесплатный, ваш компьютер не нагружается.',
+        autopilot_help_groq: '<b>Groq — бесплатная и быстрая LLM (рекомендуем):</b><br><br>1. Откройте <a href="https://console.groq.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.groq.com</a> и войдите через Google (1 клик)<br>2. Перейдите в <a href="https://console.groq.com/keys" target="_blank" style="color:#667eea;text-decoration:underline;">API Keys</a><br>3. Нажмите <b>«Create API Key»</b><br>4. Скопируйте ключ (начинается с <code>gsk_...</code>)<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br>💡 <b>Полностью бесплатно</b> — не нужна карта, не нужна оплата. Модель <code>llama-3.3-70b-versatile</code> — мощная и очень быстрая. Ваш компьютер не нагружается.',
         autopilot_help_openai: '<b>OpenAI (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://platform.openai.com/signup" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/signup</a> и создайте аккаунт (или войдите через Google)<br>2. Откройте <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Нажмите кнопку <b>«+ Create new secret key»</b><br>4. Скопируйте ключ (начинается с <code>sk-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота (GPT-4o). $5 хватит на сотни запусков.',
         autopilot_help_anthropic: '<b>Anthropic Claude (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://console.anthropic.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.anthropic.com</a> и создайте аккаунт<br>2. Откройте <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#667eea;text-decoration:underline;">Settings → API Keys</a><br>3. Нажмите <b>«Create Key»</b><br>4. Скопируйте ключ (начинается с <code>sk-ant-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота. $5 хватит на сотни запусков.',
         autopilot_help_openai_compatible: '<b>Локальная LLM (бесплатно, но грузит ваш ПК):</b><br><br>🔑 <b>API ключ не нужен</b> — всё работает локально на вашем компьютере.<br><br><b>Вариант 1 — Ollama (проще):</b><br>1. Скачайте и установите с <a href="https://ollama.com/download" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Откройте терминал (командную строку) и выполните:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — скачает модель (~4 ГБ)<br>3. Ollama запустится автоматически после установки<br>4. Endpoint: <code>http://localhost:11434/v1</code> (уже заполнен)<br>5. В поле Модель напишите: <code>llama3</code><br><br><b>Вариант 2 — LM Studio (с интерфейсом):</b><br>1. Скачайте с <a href="https://lmstudio.ai" target="_blank" style="color:#667eea;text-decoration:underline;">lmstudio.ai</a> и установите<br>2. В программе найдите и скачайте модель (например llama3)<br>3. Перейдите во вкладку <b>«Local Server»</b> (иконка ↔ слева) → нажмите <b>«Start Server»</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. В поле Модель укажите название загруженной модели<br><br>⚠️ <b>Требует мощный ПК</b> (16GB+ RAM, лучше с видеокартой). LLM работает одновременно с обучением — может быть медленно. Рекомендуем Google Colab если ПК слабый.',
@@ -1339,9 +1339,9 @@ var TRANSLATIONS = {
         autopilot_state_completed: 'Completed!',
         autopilot_state_error: 'Error',
         autopilot_state_stopped: 'Stopped',
-        autopilot_opt_colab: 'Google Colab (Free)',
+        autopilot_opt_groq: 'Groq (Free)',
         autopilot_opt_local: 'Local / Ollama / LM Studio',
-        autopilot_help_google_colab: '<b>Free LLM via Google Colab (no registration):</b><br><br>1. Open the <a href="https://colab.research.google.com/github/Slavikpro557/ai-neural-network-project/blob/main/colab_llm_server.ipynb" target="_blank" style="color:#667eea;text-decoration:underline;">notebook in Google Colab</a><br>2. Click <b>Runtime → Run all</b> and wait ~3-5 min<br>3. A green box with your URL will appear — copy it<br>4. Paste the URL into the <b>Endpoint</b> field above<br><br>💡 No registration needed (just a Google account for Colab). Free GPU, your computer stays unloaded.',
+        autopilot_help_groq: '<b>Groq — free and fast LLM (recommended):</b><br><br>1. Open <a href="https://console.groq.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.groq.com</a> and sign in with Google (1 click)<br>2. Go to <a href="https://console.groq.com/keys" target="_blank" style="color:#667eea;text-decoration:underline;">API Keys</a><br>3. Click <b>"Create API Key"</b><br>4. Copy the key (starts with <code>gsk_...</code>)<br>5. Paste it into the <b>API Key</b> field above<br><br>💡 <b>Completely free</b> — no credit card, no payment needed. Model <code>llama-3.3-70b-versatile</code> is powerful and very fast. Your computer stays unloaded.',
         autopilot_help_openai: '<b>OpenAI (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://platform.openai.com/signup" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/signup</a> and create an account (or sign in with Google)<br>2. Open <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Click the <b>"+ Create new secret key"</b> button<br>4. Copy the key (starts with <code>sk-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run (GPT-4o). $5 is enough for hundreds of runs.',
         autopilot_help_anthropic: '<b>Anthropic Claude (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://console.anthropic.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.anthropic.com</a> and create an account<br>2. Open <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#667eea;text-decoration:underline;">Settings → API Keys</a><br>3. Click <b>"Create Key"</b><br>4. Copy the key (starts with <code>sk-ant-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run. $5 is enough for hundreds of runs.',
         autopilot_help_openai_compatible: '<b>Local LLM (free, but uses your PC resources):</b><br><br>🔑 <b>No API key needed</b> — everything runs locally on your computer.<br><br><b>Option 1 — Ollama (easier):</b><br>1. Download and install from <a href="https://ollama.com/download" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Open a terminal and run:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — downloads the model (~4 GB)<br>3. Ollama starts automatically after installation<br>4. Endpoint: <code>http://localhost:11434/v1</code> (already filled in)<br>5. In the Model field type: <code>llama3</code><br><br><b>Option 2 — LM Studio (has a GUI):</b><br>1. Download from <a href="https://lmstudio.ai" target="_blank" style="color:#667eea;text-decoration:underline;">lmstudio.ai</a> and install<br>2. Search and download a model in the app (e.g. llama3)<br>3. Go to the <b>"Local Server"</b> tab (↔ icon on the left) → click <b>"Start Server"</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. In the Model field enter the name of the downloaded model<br><br>⚠️ <b>Requires a powerful PC</b> (16GB+ RAM, GPU recommended). LLM runs alongside model training — may be slow. We recommend Google Colab if your PC is not powerful enough.',
@@ -1375,16 +1375,15 @@ var autopilotLogSince = 0;
 
 function updateProviderFields() {
     var p = document.getElementById('ap_provider').value;
-    document.getElementById('ap_endpoint_group').style.display = (p === 'openai_compatible' || p === 'google_colab') ? 'block' : 'none';
-    document.getElementById('ap_api_key_group').style.display = (p === 'google_colab' || p === 'openai_compatible') ? 'none' : 'block';
+    document.getElementById('ap_endpoint_group').style.display = (p === 'openai_compatible') ? 'block' : 'none';
+    document.getElementById('ap_api_key_group').style.display = (p === 'openai_compatible') ? 'none' : 'block';
     var m = document.getElementById('ap_model');
     if (p === 'openai') m.placeholder = 'gpt-4o';
     else if (p === 'anthropic') m.placeholder = 'claude-sonnet-4-20250514';
-    else if (p === 'google_colab') m.placeholder = 'llama3.2:3b';
+    else if (p === 'groq') m.placeholder = 'llama-3.3-70b-versatile';
     else m.placeholder = 'llama3';
     var ep = document.getElementById('ap_endpoint');
-    if (p === 'google_colab') ep.placeholder = 'https://xxxx.ngrok.io/v1';
-    else ep.placeholder = 'http://localhost:11434/v1';
+    ep.placeholder = 'http://localhost:11434/v1';
     var help = document.getElementById('ap_provider_help');
     help.innerHTML = t('autopilot_help_' + p);
     help.style.display = 'block';
@@ -1402,14 +1401,20 @@ function startAutopilot() {
     if (!goal) { alert(t('autopilot_enter_goal')); return; }
     var apiKey = document.getElementById('ap_api_key').value.trim();
     var provider = document.getElementById('ap_provider').value;
-    if (provider !== 'openai_compatible' && provider !== 'google_colab' && !apiKey) { alert(t('autopilot_enter_key')); return; }
-    var sendProvider = (provider === 'google_colab') ? 'openai_compatible' : provider;
+    if (provider !== 'openai_compatible' && !apiKey) { alert(t('autopilot_enter_key')); return; }
+
+    var sendProvider = provider;
+    var sendEndpoint = document.getElementById('ap_endpoint').value || null;
+    if (provider === 'groq') {
+        sendProvider = 'openai_compatible';
+        sendEndpoint = 'https://api.groq.com/openai/v1';
+    }
 
     var body = {
         goal: goal,
         provider: sendProvider,
         api_key: apiKey || '',
-        endpoint: document.getElementById('ap_endpoint').value || null,
+        endpoint: sendEndpoint,
         model: document.getElementById('ap_model').value || null
     };
 
