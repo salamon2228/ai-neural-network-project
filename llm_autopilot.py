@@ -317,9 +317,12 @@ class LLMProvider:
             failed = err.get("error", {}).get("failed_generation", "")
             if not failed:
                 return None
-            # Parse <function=func_name>{"arg": "val"}</function>
+            # Parse various Llama formats:
+            # <function=name>{"arg": "val"}</function>
+            # <function=name,{"arg": "val"}</function>
+            # <function=name>{$"arg": "val"}</function>
             import re
-            match = re.search(r'<function=(\w+)>\s*(\{.*?\})\s*</function>', failed, re.DOTALL)
+            match = re.search(r'<function=(\w+)[>,\s]\s*(\{.*?\})\s*</function>', failed, re.DOTALL)
             if match:
                 func_name = match.group(1)
                 try:
