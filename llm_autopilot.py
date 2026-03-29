@@ -289,6 +289,21 @@ class LLMProvider:
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
+    def _trim_messages(self, messages: list, max_messages: int = 20) -> list:
+        """Keep system message + last N messages to avoid token overflow."""
+        if len(messages) <= max_messages + 1:
+            return messages
+        system_msgs = [m for m in messages if m.get("role") == "system"]
+        non_system = [m for m in messages if m.get("role") != "system"]
+        # Keep last max_messages non-system messages
+        trimmed = non_system[-max_messages:]
+        # Also truncate long tool results in history
+        for m in trimmed:
+            if m.get("role") == "tool" and len(m.get("content", "")) > 500:
+                m = dict(m)
+                m["content"] = m["content"][:500] + "... (truncated)"
+        return system_msgs + trimmed
+
     def chat(self, messages: list, tools: list = None) -> dict:
         """Send chat request. Returns {"content": str|None, "tool_calls": list|None, "stop_reason": str}"""
         if self.provider == "anthropic":
@@ -298,10 +313,13 @@ class LLMProvider:
 
     def _call_openai(self, messages: list, tools: list = None) -> dict:
         """Call OpenAI or OpenAI-compatible API."""
+        # Trim conversation history to avoid token overflow (keep system + last 20 messages)
+        trimmed = self._trim_messages(messages)
+
         body = {
             "model": self.model,
-            "messages": messages,
-            "max_tokens": 4096,
+            "messages": trimmed,
+            "max_tokens": 2048,
         }
         if tools:
             body["tools"] = AUTOPILOT_TOOLS_OPENAI
@@ -319,7 +337,7 @@ class LLMProvider:
         ctx = ssl.create_default_context()
 
         import re as _re
-        for _attempt in range(5):
+        for _attempt in range(10):
             try:
                 resp = urllib.request.urlopen(req, timeout=120, context=ctx)
                 result = json.loads(resp.read().decode("utf-8"))
@@ -329,7 +347,8 @@ class LLMProvider:
                 # Rate limit — wait and retry
                 if e.code == 429:
                     wait_match = _re.search(r'try again in (\d+\.?\d*)', error_body)
-                    wait_time = float(wait_match.group(1)) + 1 if wait_match else 15
+                    wait_time = float(wait_match.group(1)) + 2 if wait_match else 20
+                    wait_time = max(wait_time, 10)  # at least 10 seconds
                     import time
                     time.sleep(wait_time)
                     req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
