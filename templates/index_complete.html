@@ -451,9 +451,10 @@
                     <div class="form-group">
                         <label data-i18n="autopilot_provider">Провайдер:</label>
                         <select id="ap_provider" onchange="updateProviderFields()">
+                            <option value="google_colab" data-i18n-option="autopilot_opt_colab">Google Colab (Free)</option>
                             <option value="openai">OpenAI (GPT-4o)</option>
                             <option value="anthropic">Anthropic (Claude)</option>
-                            <option value="openai_compatible">Local / Ollama / LM Studio</option>
+                            <option value="openai_compatible" data-i18n-option="autopilot_opt_local">Local / Ollama / LM Studio</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -462,15 +463,16 @@
                     </div>
                 </div>
                 <div class="grid" style="grid-template-columns:1fr 1fr;">
-                    <div class="form-group">
+                    <div class="form-group" id="ap_api_key_group">
                         <label data-i18n="autopilot_api_key">API ключ:</label>
                         <input type="password" id="ap_api_key" placeholder="sk-..." style="font-family:monospace;">
                     </div>
-                    <div class="form-group" id="ap_endpoint_group" style="display:none;">
+                    <div class="form-group" id="ap_endpoint_group">
                         <label data-i18n="autopilot_endpoint">Endpoint:</label>
-                        <input type="text" id="ap_endpoint" placeholder="http://localhost:11434/v1">
+                        <input type="text" id="ap_endpoint" placeholder="https://xxxx.ngrok.io/v1">
                     </div>
                 </div>
+                <div id="ap_provider_help" style="background:#667eea15;border:1px solid #667eea44;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:0.82em;line-height:1.6;"></div>
             </div>
 
             <div class="info-card">
@@ -1158,6 +1160,12 @@ var TRANSLATIONS = {
         autopilot_state_completed: 'Завершено!',
         autopilot_state_error: 'Ошибка',
         autopilot_state_stopped: 'Остановлен',
+        autopilot_opt_colab: 'Google Colab (Бесплатно)',
+        autopilot_opt_local: 'Локальная / Ollama / LM Studio',
+        autopilot_help_google_colab: '<b>Бесплатная LLM через Google Colab:</b><br>1. Откройте <a href="https://colab.research.google.com/github/Slavikpro557/ai-neural-network-project/blob/main/colab_llm_server.ipynb" target="_blank" style="color:#667eea;text-decoration:underline;">ноутбук в Google Colab</a><br>2. Нажмите <b>Runtime → Run all</b><br>3. Зарегистрируйтесь на <a href="https://ngrok.com" target="_blank" style="color:#667eea;text-decoration:underline;">ngrok.com</a> (бесплатно) и вставьте токен в ноутбук<br>4. Скопируйте URL из вывода и вставьте в поле <b>Endpoint</b><br>5. Нажмите «Запустить автопилот»<br><br>💡 GPU Colab бесплатный, LLM работает на нём — ваш компьютер не нагружается.',
+        autopilot_help_openai: '<b>OpenAI (платный):</b><br>1. Зарегистрируйтесь на <a href="https://platform.openai.com" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com</a><br>2. Перейдите в <b>API Keys → Create new secret key</b><br>3. Вставьте ключ (<code>sk-...</code>) в поле API ключ<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота (GPT-4o).',
+        autopilot_help_anthropic: '<b>Anthropic Claude (платный):</b><br>1. Зарегистрируйтесь на <a href="https://console.anthropic.com" target="_blank" style="color:#667eea;text-decoration:underline;">console.anthropic.com</a><br>2. Перейдите в <b>API Keys → Create Key</b><br>3. Вставьте ключ в поле API ключ<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота.',
+        autopilot_help_openai_compatible: '<b>Локальная LLM (бесплатно, но грузит ваш ПК):</b><br>1. Установите <a href="https://ollama.com" target="_blank" style="color:#667eea;text-decoration:underline;">Ollama</a> или <a href="https://lmstudio.ai" target="_blank" style="color:#667eea;text-decoration:underline;">LM Studio</a><br>2. Скачайте модель: <code>ollama pull llama3</code><br>3. Запустите сервер (Ollama запускается автоматически)<br>4. Endpoint по умолчанию: <code>http://localhost:11434/v1</code><br><br>⚠️ Требует мощный ПК (16GB+ RAM). LLM работает одновременно с обучением.',
         btn_attach: '+ Прикрепить', btn_detach: 'Открепить',
         filter_all: 'Все',
         no_datasets: 'Нет датасетов.', no_attached: 'Нет прикреплённых.',
@@ -1310,6 +1318,12 @@ var TRANSLATIONS = {
         autopilot_state_completed: 'Completed!',
         autopilot_state_error: 'Error',
         autopilot_state_stopped: 'Stopped',
+        autopilot_opt_colab: 'Google Colab (Free)',
+        autopilot_opt_local: 'Local / Ollama / LM Studio',
+        autopilot_help_google_colab: '<b>Free LLM via Google Colab:</b><br>1. Open the <a href="https://colab.research.google.com/github/Slavikpro557/ai-neural-network-project/blob/main/colab_llm_server.ipynb" target="_blank" style="color:#667eea;text-decoration:underline;">notebook in Google Colab</a><br>2. Click <b>Runtime → Run all</b><br>3. Sign up at <a href="https://ngrok.com" target="_blank" style="color:#667eea;text-decoration:underline;">ngrok.com</a> (free) and paste the token into the notebook<br>4. Copy the URL from the output and paste it into the <b>Endpoint</b> field<br>5. Click "Start Autopilot"<br><br>💡 Colab GPU is free, the LLM runs there — your computer stays unloaded.',
+        autopilot_help_openai: '<b>OpenAI (paid):</b><br>1. Sign up at <a href="https://platform.openai.com" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com</a><br>2. Go to <b>API Keys → Create new secret key</b><br>3. Paste the key (<code>sk-...</code>) into the API Key field<br><br>💰 Cost: ~$0.01–0.05 per autopilot run (GPT-4o).',
+        autopilot_help_anthropic: '<b>Anthropic Claude (paid):</b><br>1. Sign up at <a href="https://console.anthropic.com" target="_blank" style="color:#667eea;text-decoration:underline;">console.anthropic.com</a><br>2. Go to <b>API Keys → Create Key</b><br>3. Paste the key into the API Key field<br><br>💰 Cost: ~$0.01–0.05 per autopilot run.',
+        autopilot_help_openai_compatible: '<b>Local LLM (free, but uses your PC resources):</b><br>1. Install <a href="https://ollama.com" target="_blank" style="color:#667eea;text-decoration:underline;">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" style="color:#667eea;text-decoration:underline;">LM Studio</a><br>2. Download a model: <code>ollama pull llama3</code><br>3. Start the server (Ollama starts automatically)<br>4. Default endpoint: <code>http://localhost:11434/v1</code><br><br>⚠️ Requires a powerful PC (16GB+ RAM). LLM runs alongside model training.',
         btn_attach: '+ Attach', btn_detach: 'Detach',
         filter_all: 'All',
         no_datasets: 'No datasets.', no_attached: 'No attached datasets.',
@@ -1340,12 +1354,21 @@ var autopilotLogSince = 0;
 
 function updateProviderFields() {
     var p = document.getElementById('ap_provider').value;
-    document.getElementById('ap_endpoint_group').style.display = p === 'openai_compatible' ? 'block' : 'none';
+    document.getElementById('ap_endpoint_group').style.display = (p === 'openai_compatible' || p === 'google_colab') ? 'block' : 'none';
+    document.getElementById('ap_api_key_group').style.display = (p === 'google_colab') ? 'none' : 'block';
     var m = document.getElementById('ap_model');
     if (p === 'openai') m.placeholder = 'gpt-4o';
     else if (p === 'anthropic') m.placeholder = 'claude-sonnet-4-20250514';
+    else if (p === 'google_colab') m.placeholder = 'llama3.2:3b';
     else m.placeholder = 'llama3';
+    var ep = document.getElementById('ap_endpoint');
+    if (p === 'google_colab') ep.placeholder = 'https://xxxx.ngrok.io/v1';
+    else ep.placeholder = 'http://localhost:11434/v1';
+    var help = document.getElementById('ap_provider_help');
+    help.innerHTML = t('autopilot_help_' + p);
+    help.style.display = 'block';
 }
+document.addEventListener('DOMContentLoaded', function() { updateProviderFields(); });
 
 function escapeHtml(s) {
     var d = document.createElement('div');
@@ -1358,12 +1381,13 @@ function startAutopilot() {
     if (!goal) { alert(t('autopilot_enter_goal')); return; }
     var apiKey = document.getElementById('ap_api_key').value.trim();
     var provider = document.getElementById('ap_provider').value;
-    if (provider !== 'openai_compatible' && !apiKey) { alert(t('autopilot_enter_key')); return; }
+    if (provider !== 'openai_compatible' && provider !== 'google_colab' && !apiKey) { alert(t('autopilot_enter_key')); return; }
+    var sendProvider = (provider === 'google_colab') ? 'openai_compatible' : provider;
 
     var body = {
         goal: goal,
-        provider: provider,
-        api_key: apiKey,
+        provider: sendProvider,
+        api_key: apiKey || '',
         endpoint: document.getElementById('ap_endpoint').value || null,
         model: document.getElementById('ap_model').value || null
     };

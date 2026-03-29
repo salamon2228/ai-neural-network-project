@@ -138,7 +138,7 @@ class CompareConfig(BaseModel):
 class AutopilotConfig(BaseModel):
     goal: str
     provider: str = "openai"
-    api_key: str
+    api_key: Optional[str] = ""
     endpoint: Optional[str] = None
     model: Optional[str] = None
 
