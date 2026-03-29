@@ -141,6 +141,7 @@ class AutopilotConfig(BaseModel):
     api_key: Optional[str] = ""
     endpoint: Optional[str] = None
     model: Optional[str] = None
+    time_budget: Optional[int] = 0
 
 
 # === UI ===
@@ -1647,7 +1648,7 @@ async def start_autopilot(config: AutopilotConfig):
             start_training_fn=train_model_background
         )
         active_autopilot = LLMAutopilot(provider, executor)
-        active_autopilot.start(config.goal)
+        active_autopilot.start(config.goal, time_budget_minutes=config.time_budget or 0)
         return {"status": "started"}
     except Exception as e:
         raise HTTPException(500, f"Failed to start autopilot: {str(e)}")

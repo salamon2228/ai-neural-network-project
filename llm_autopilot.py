@@ -18,42 +18,73 @@ from typing import Optional, Callable
 # SYSTEM PROMPT
 # ============================
 
-SYSTEM_PROMPT = """You are an AI autopilot that automatically trains small transformer language models.
-Given a user's goal in natural language, you select the best datasets, create a model with optimal parameters, and train it.
+SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small transformer language models.
 
-## Your Process
-1. ANALYZE the user's goal: what kind of text should the model generate? What language?
-2. Use report_to_user to explain your plan before acting.
-3. BROWSE the catalog using list_catalog with appropriate category and language filters.
-4. SELECT 2-5 datasets that are most relevant. Consider:
-   - Language match is CRITICAL (Russian goal → Russian datasets, English → English)
-   - Genre/topic match (detective stories need detective datasets, not poetry)
-   - Mix of dataset sizes for diversity
-5. DOWNLOAD each selected dataset (one at a time, wait for each to complete).
-6. CREATE a model with parameters tuned to the goal.
-7. ATTACH all downloaded datasets to the model.
-8. START training with appropriate parameters.
-9. Training runs in the background. Use check_training_status periodically to monitor.
-10. After training completes, GENERATE 2-3 sample texts to evaluate quality.
-11. Use report_to_user with is_final=true to deliver the final report.
+## ABSOLUTE RULES (violating these = failure):
+1. NEVER invent or guess dataset names/IDs. ONLY use IDs returned by list_catalog or search_huggingface.
+2. ALWAYS read the result of each tool call before proceeding. If a tool returns an error, STOP and handle it.
+3. NEVER say "done" or report success if any step actually failed.
+4. NEVER proceed to training if 0 datasets were successfully attached.
+5. After training, you MUST generate samples and evaluate quality. If quality is bad, you MUST retry.
+
+## Your Process (follow EXACTLY):
+
+### Phase 1: Planning
+1. Analyze the user's goal: language, genre, quality expectations, time budget.
+2. report_to_user: explain your plan (what datasets, what model size, estimated time).
+
+### Phase 2: Data Collection
+3. Call list_catalog with appropriate filters. READ the response carefully.
+4. From the ACTUAL results, pick 2-5 best dataset IDs. If no results, try different filters or search_huggingface.
+5. Download each dataset ONE AT A TIME. After each download, CHECK the result:
+   - If result has "status": "success" → note the "filename" for later.
+   - If result has "error" → skip this dataset, try another.
+6. Keep a mental list of SUCCESSFULLY downloaded filenames.
+
+### Phase 3: Model Creation
+7. Create model with parameters based on the goal (see guide below).
+8. Attach ONLY the successfully downloaded datasets using their EXACT filenames from download results.
+9. After attaching, verify: if 0 datasets attached successfully → STOP and report the problem.
+
+### Phase 4: Training
+10. Start training with appropriate iterations (more = better quality but slower).
+11. Training runs in background. System will notify you when it's done.
+
+### Phase 5: Quality Evaluation (CRITICAL - DO NOT SKIP)
+12. After training completes, generate 3-5 samples with different prompts and temperatures.
+13. Evaluate EACH sample honestly:
+    - Does it contain real words (not <UNK> or garbage)?
+    - Is it coherent? Does it make grammatical sense?
+    - Is it relevant to the goal?
+    - Rate quality: TERRIBLE / BAD / MEDIOCRE / OK / GOOD
+14. If quality is TERRIBLE or BAD (lots of <UNK>, nonsense, wrong language):
+    - Analyze WHY: not enough data? wrong parameters? too few iterations?
+    - Try to fix: retrain with more iterations, or different parameters, or more data.
+    - You can retrain up to 2 times.
+15. Report final results with honest quality assessment and sample outputs.
 
 ## Model Parameter Guide
-- For short creative text: layers=4, d_model=256, iterations=2000-3000, vocab=10000
-- For standard text: layers=6, d_model=256, iterations=3000-5000, vocab=15000
-- For complex/long text: layers=8, d_model=384, iterations=5000-15000, vocab=20000
-- For code: layers=6, d_model=384, vocab=25000+, iterations=5000+
-- For Russian text: vocab ≥ 15000 (rich morphology needs larger vocabulary)
-- learning_rate: 3e-4 is good default; use 1e-4 for larger models
-- batch_size: 16 default; reduce to 8 for large models
+| Goal | layers | d_model | d_ff | vocab | iterations | lr |
+|------|--------|---------|------|-------|------------|------|
+| Quick test | 4 | 128 | 512 | 8000 | 1000-2000 | 3e-4 |
+| Short creative | 4 | 256 | 1024 | 10000 | 3000-5000 | 3e-4 |
+| Standard text | 6 | 256 | 1024 | 15000 | 5000-8000 | 3e-4 |
+| Quality text | 8 | 384 | 1536 | 20000 | 8000-15000 | 1e-4 |
+| Russian text | 6-8 | 256-384 | 1024 | 15000-20000 | 5000-10000 | 3e-4 |
+| Code | 6 | 384 | 1536 | 25000 | 5000-10000 | 3e-4 |
 
-## Critical Rules
-- The dataset_name for attach_dataset is the FILENAME: "{catalog_id}.txt" (e.g. "gutenberg_sherlock.txt")
-- Download datasets ONE AT A TIME (wait for each to finish)
-- Always use report_to_user to explain your reasoning before major actions
-- If a download fails, skip it and try an alternative
-- Choose a descriptive model name related to the goal (e.g. "detective_en", "russian_poet")
-- Keep total dataset count between 2-5 for optimal training
-- If catalog doesn't have good matches, try search_huggingface
+## Critical Details
+- attach_dataset filename = "{catalog_id}.txt" (e.g., "ruslit_war_and_peace.txt")
+- For Russian: vocab MUST be ≥ 15000 (rich morphology)
+- More iterations = better quality but takes longer
+- If user set a time limit, adjust iterations to fit
+- batch_size: 16 default; 8 for large models
+- Generate samples with different prompts to test model diversity
+- A loss < 2.0 after training usually means decent quality
+- A loss > 4.0 usually means the model learned nothing useful
+
+## Time Budget
+{time_budget_info}
 """
 
 # ============================
@@ -178,6 +209,26 @@ AUTOPILOT_TOOLS_OPENAI = [
                     "temperature": {"type": "number", "description": "Sampling temperature (default 0.8)"}
                 },
                 "required": ["model_name", "prompt"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "evaluate_model",
+            "description": "Run automatic quality evaluation on a trained model. Generates multiple samples and scores them on coherence, diversity, language correctness. Returns a quality report with scores and verdict.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "string", "description": "Name of the model to evaluate"},
+                    "language": {"type": "string", "description": "Expected language: 'ru' or 'en'"},
+                    "prompts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of prompts to test (3-5 recommended). If empty, auto-generates prompts."
+                    }
+                },
+                "required": ["model_name"]
             }
         }
     },
@@ -473,6 +524,7 @@ class ToolExecutor:
             "start_training": self._start_training,
             "check_training_status": self._check_training_status,
             "generate_sample": self._generate_sample,
+            "evaluate_model": self._evaluate_model,
             "report_to_user": self._report_to_user,
         }
         handler = dispatch.get(tool_name)
@@ -677,6 +729,106 @@ class ToolExecutor:
         except Exception as e:
             return {"error": f"Generation failed: {str(e)}"}
 
+    def _evaluate_model(self, model_name: str, language: str = "en", prompts: list = None) -> dict:
+        """Run comprehensive quality evaluation on a trained model."""
+        try:
+            if not prompts or len(prompts) == 0:
+                if language == "ru":
+                    prompts = ["В этот день", "Она посмотрела", "Когда наступила", "Он шёл по", "Жизнь в городе"]
+                else:
+                    prompts = ["The morning was", "She walked into", "Once upon a", "He thought about", "In the city"]
+
+            samples = []
+            total_unk = 0
+            total_tokens = 0
+            total_unique_words = set()
+            real_word_count = 0
+            total_word_count = 0
+
+            for prompt in prompts[:5]:
+                result = self._generate_sample(model_name=model_name, prompt=prompt, max_length=80, temperature=0.8)
+                if "error" in result:
+                    samples.append({"prompt": prompt, "error": result["error"]})
+                    continue
+
+                text = result.get("text", "")
+                words = text.split()
+                unk_count = text.count("<UNK>")
+                total_unk += unk_count
+                total_tokens += len(words)
+
+                # Check for real words (not <UNK>, <PAD>, not single chars)
+                real_words = [w for w in words if not w.startswith("<") and len(w) > 1]
+                real_word_count += len(real_words)
+                total_word_count += len(words)
+                total_unique_words.update(real_words)
+
+                # Check for repetition
+                word_set = set(real_words)
+                repetition_ratio = 1.0 - (len(word_set) / max(len(real_words), 1))
+
+                samples.append({
+                    "prompt": prompt,
+                    "generated": text[:300],
+                    "unk_count": unk_count,
+                    "word_count": len(words),
+                    "unique_words": len(word_set),
+                    "repetition_ratio": round(repetition_ratio, 2)
+                })
+
+            # Overall scores
+            unk_ratio = total_unk / max(total_tokens, 1)
+            real_word_ratio = real_word_count / max(total_word_count, 1)
+            vocabulary_diversity = len(total_unique_words)
+            avg_repetition = sum(s.get("repetition_ratio", 0) for s in samples if "error" not in s) / max(len([s for s in samples if "error" not in s]), 1)
+
+            # Determine verdict
+            if unk_ratio > 0.5:
+                verdict = "TERRIBLE"
+                advice = "Model produces mostly <UNK>. Likely no data was attached or tokenizer not trained. Need to attach datasets and retrain."
+            elif unk_ratio > 0.2:
+                verdict = "BAD"
+                advice = "Too many unknown tokens. Need more training data or more iterations."
+            elif real_word_ratio < 0.5:
+                verdict = "BAD"
+                advice = "Too few real words. Model needs more training iterations."
+            elif avg_repetition > 0.8:
+                verdict = "BAD"
+                advice = "Model just repeats the same words. Need more diverse training data or lower temperature."
+            elif vocabulary_diversity < 20:
+                verdict = "MEDIOCRE"
+                advice = "Very limited vocabulary in output. Need more data or more training iterations."
+            elif vocabulary_diversity < 50:
+                verdict = "OK"
+                advice = "Acceptable but could improve with more iterations or data."
+            else:
+                verdict = "GOOD"
+                advice = "Model produces diverse, coherent text."
+
+            # Check training loss
+            loss = self.training_status.get("current_loss", 999)
+            if loss > 5.0:
+                verdict = "TERRIBLE"
+                advice = "Training loss is very high ({:.2f}). Model didn't learn. Check if datasets were attached.".format(loss)
+            elif loss > 3.5 and verdict in ("OK", "GOOD"):
+                verdict = "MEDIOCRE"
+                advice = "Loss is still high ({:.2f}). More iterations would improve quality.".format(loss)
+
+            return {
+                "verdict": verdict,
+                "advice": advice,
+                "scores": {
+                    "unk_ratio": round(unk_ratio, 3),
+                    "real_word_ratio": round(real_word_ratio, 3),
+                    "vocabulary_diversity": vocabulary_diversity,
+                    "avg_repetition": round(avg_repetition, 3),
+                    "training_loss": round(loss, 4)
+                },
+                "samples": samples
+            }
+        except Exception as e:
+            return {"error": f"Evaluation failed: {str(e)}"}
+
     def _report_to_user(self, message: str, is_final: bool = False) -> dict:
         return {"status": "reported", "message": message, "is_final": is_final}
 
@@ -697,12 +849,13 @@ class LLMAutopilot:
         self.stop_requested = False
         self._thread = None
 
-    def start(self, user_goal: str):
+    def start(self, user_goal: str, time_budget_minutes: int = 0):
         """Start the autopilot in a background thread."""
         self.state = "planning"
         self.stop_requested = False
         self.log = []
         self.messages = []
+        self.time_budget = time_budget_minutes
         self._thread = threading.Thread(target=self._run, args=(user_goal,), daemon=True)
         self._thread.start()
 
@@ -726,8 +879,16 @@ class LLMAutopilot:
     def _run(self, user_goal: str):
         self._log("system", f"Autopilot started. Goal: {user_goal}")
 
+        # Build system prompt with time budget
+        if self.time_budget and self.time_budget > 0:
+            time_info = f"User set a time limit of {self.time_budget} minutes. Adjust iterations to fit: ~100 iterations/minute on CPU, ~500 iterations/minute on GPU. Leave 2 minutes for evaluation. If time is very short (<10 min), use fewer iterations and smaller model."
+        else:
+            time_info = "No time limit set. Focus on quality — use enough iterations for good results (at least 3000-5000)."
+
+        system_prompt = SYSTEM_PROMPT.replace("{time_budget_info}", time_info)
+
         self.messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_goal}
         ]
 

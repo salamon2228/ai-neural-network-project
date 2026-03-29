@@ -503,6 +503,13 @@ html = r'''<!DOCTYPE html>
                         data-i18n-placeholder="autopilot_goal_placeholder"
                         placeholder="Хочу модель, которая пишет детективные рассказы в стиле Шерлока Холмса на английском"></textarea>
                 </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label data-i18n="autopilot_time_budget">Лимит времени (минут):</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="number" id="ap_time_budget" min="0" max="480" value="0" style="width:100px;">
+                        <span style="color:#9ca3af;font-size:0.82em;" data-i18n="autopilot_time_hint">0 = без лимита. LLM подстроит кол-во итераций под время.</span>
+                    </div>
+                </div>
                 <div style="display:flex;gap:10px;margin-top:10px;">
                     <button class="btn btn-primary" onclick="startAutopilot()" id="ap_start_btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" data-i18n="autopilot_start">Запустить автопилот</button>
                     <button class="btn btn-danger" onclick="stopAutopilot()" id="ap_stop_btn" style="display:none;" data-i18n="autopilot_stop">Остановить</button>
@@ -1181,6 +1188,8 @@ var TRANSLATIONS = {
         autopilot_state_completed: 'Завершено!',
         autopilot_state_error: 'Ошибка',
         autopilot_state_stopped: 'Остановлен',
+        autopilot_time_budget: 'Лимит времени (минут):',
+        autopilot_time_hint: '0 = без лимита. LLM подстроит кол-во итераций под время.',
         autopilot_opt_groq: 'Groq (Бесплатно)',
         autopilot_opt_local: 'Локальная / Ollama / LM Studio',
         autopilot_help_groq: '<b>Groq — бесплатная и быстрая LLM (рекомендуем):</b><br><br>1. Откройте <a href="https://console.groq.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.groq.com</a> и войдите через Google (1 клик)<br>2. Перейдите в <a href="https://console.groq.com/keys" target="_blank" style="color:#667eea;text-decoration:underline;">API Keys</a><br>3. Нажмите <b>«Create API Key»</b><br>4. Скопируйте ключ (начинается с <code>gsk_...</code>)<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br>💡 <b>Полностью бесплатно</b> — не нужна карта, не нужна оплата. Модель <code>llama-3.3-70b-versatile</code> — мощная и очень быстрая. Ваш компьютер не нагружается.',
@@ -1339,6 +1348,8 @@ var TRANSLATIONS = {
         autopilot_state_completed: 'Completed!',
         autopilot_state_error: 'Error',
         autopilot_state_stopped: 'Stopped',
+        autopilot_time_budget: 'Time limit (minutes):',
+        autopilot_time_hint: '0 = no limit. LLM will adjust iterations to fit the time.',
         autopilot_opt_groq: 'Groq (Free)',
         autopilot_opt_local: 'Local / Ollama / LM Studio',
         autopilot_help_groq: '<b>Groq — free and fast LLM (recommended):</b><br><br>1. Open <a href="https://console.groq.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.groq.com</a> and sign in with Google (1 click)<br>2. Go to <a href="https://console.groq.com/keys" target="_blank" style="color:#667eea;text-decoration:underline;">API Keys</a><br>3. Click <b>"Create API Key"</b><br>4. Copy the key (starts with <code>gsk_...</code>)<br>5. Paste it into the <b>API Key</b> field above<br><br>💡 <b>Completely free</b> — no credit card, no payment needed. Model <code>llama-3.3-70b-versatile</code> is powerful and very fast. Your computer stays unloaded.',
@@ -1412,12 +1423,15 @@ function startAutopilot() {
         if (!sendModel) sendModel = 'llama-3.3-70b-versatile';
     }
 
+    var timeBudget = parseInt(document.getElementById('ap_time_budget').value) || 0;
+
     var body = {
         goal: goal,
         provider: sendProvider,
         api_key: apiKey || '',
         endpoint: sendEndpoint,
-        model: sendModel
+        model: sendModel,
+        time_budget: timeBudget
     };
 
     fetch('/autopilot/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
