@@ -259,6 +259,7 @@ class LLMProvider:
         data = json.dumps(body).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
+            "User-Agent": "AZR-Autopilot/1.0",
         }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -329,6 +330,7 @@ class LLMProvider:
         data = json.dumps(body).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
+            "User-Agent": "AZR-Autopilot/1.0",
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01"
         }
