@@ -267,16 +267,29 @@ class LLMProvider:
         req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
         ctx = ssl.create_default_context()
 
-        try:
-            resp = urllib.request.urlopen(req, timeout=120, context=ctx)
-            result = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="ignore")
-            # Groq/Llama: tool_use_failed with failed_generation containing <function=name>{args}</function>
-            parsed = self._parse_failed_tool_call(error_body)
-            if parsed:
-                return parsed
-            raise Exception(f"LLM API error {e.code}: {error_body}")
+        import re as _re
+        for _attempt in range(5):
+            try:
+                resp = urllib.request.urlopen(req, timeout=120, context=ctx)
+                result = json.loads(resp.read().decode("utf-8"))
+                break
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8", errors="ignore")
+                # Rate limit — wait and retry
+                if e.code == 429:
+                    wait_match = _re.search(r'try again in (\d+\.?\d*)', error_body)
+                    wait_time = float(wait_match.group(1)) + 1 if wait_match else 15
+                    import time
+                    time.sleep(wait_time)
+                    req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
+                    continue
+                # Groq/Llama: tool_use_failed with failed_generation
+                parsed = self._parse_failed_tool_call(error_body)
+                if parsed:
+                    return parsed
+                raise Exception(f"LLM API error {e.code}: {error_body}")
+        else:
+            raise Exception("LLM API rate limit: too many retries")
 
         choice = result["choices"][0]
         msg = choice["message"]
