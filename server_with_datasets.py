@@ -31,6 +31,7 @@ from dataset_manager import DatasetManager
 from dataset_catalog import DatasetCatalog
 from reward_model import RewardComputer
 from training_analytics import TrainingAnalytics
+from llm_autopilot import LLMAutopilot, LLMProvider, ToolExecutor
 
 app = FastAPI(title="AZR Model Trainer v2")
 
@@ -75,6 +76,7 @@ download_status = {
 active_models = {}
 active_trainer = None
 active_analytics = None
+active_autopilot = None
 
 
 # === Pydantic Models ===
@@ -131,6 +133,14 @@ class CompareConfig(BaseModel):
     prompt: str
     iterations: List[int]
     max_length: int = 100
+
+
+class AutopilotConfig(BaseModel):
+    goal: str
+    provider: str = "openai"
+    api_key: str
+    endpoint: Optional[str] = None
+    model: Optional[str] = None
 
 
 # === UI ===
@@ -1616,6 +1626,54 @@ async def install_gpu_pytorch():
 
 
 # ─────────────────────────────────────────
+# LLM Autopilot
+# ─────────────────────────────────────────
+
+@app.post("/autopilot/start")
+async def start_autopilot(config: AutopilotConfig):
+    global active_autopilot
+    if active_autopilot and active_autopilot.state in ("planning", "executing", "monitoring"):
+        raise HTTPException(400, "Autopilot is already running")
+    try:
+        provider = LLMProvider(config.provider, config.api_key, config.endpoint, config.model)
+        executor = ToolExecutor(
+            dataset_catalog=dataset_catalog,
+            dataset_manager=dataset_manager,
+            models_dir=MODELS_DIR,
+            books_dir=BOOKS_DIR,
+            checkpoints_dir=CHECKPOINTS_DIR,
+            training_status=training_status,
+            active_models=active_models,
+            start_training_fn=train_model_background
+        )
+        active_autopilot = LLMAutopilot(provider, executor)
+        active_autopilot.start(config.goal)
+        return {"status": "started"}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to start autopilot: {str(e)}")
+
+
+@app.get("/autopilot/status")
+async def get_autopilot_status(since: int = 0):
+    if not active_autopilot:
+        return {"state": "idle", "log": [], "log_count": 0}
+    status = active_autopilot.get_status()
+    return {
+        "state": status["state"],
+        "log": status["log"][since:],
+        "log_count": status["log_count"]
+    }
+
+
+@app.post("/autopilot/stop")
+async def stop_autopilot():
+    if active_autopilot:
+        active_autopilot.stop()
+        return {"status": "stopping"}
+    return {"status": "not_running"}
+
+
+# ─────────────────────────────────────────
 # Запуск
 # ─────────────────────────────────────────
 
@@ -1628,7 +1686,7 @@ if __name__ == "__main__":
         else:
             print(s)
     _p("=" * 60)
-    _p("  AZR Model Trainer v2")
+    _p("  AZR Model Trainer v2 + LLM Autopilot")
     _p("  Features: Catalog, Analytics, REINFORCE, Comparison")
     _p("=" * 60)
     _p(f"Models: {MODELS_DIR}")

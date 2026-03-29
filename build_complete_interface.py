@@ -64,6 +64,17 @@ html = r'''<!DOCTYPE html>
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .chart-container { position: relative; height: 300px; margin: 15px 0; background: #16213e; border-radius: 12px; padding: 15px; border: 1px solid #333; }
+        .ap-log-entry { padding: 6px 0; border-bottom: 1px solid #222; line-height: 1.6; }
+        .ap-time { color: #555; font-family: monospace; font-size: 0.8em; margin-right: 6px; }
+        .ap-type { font-weight: 600; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; margin-right: 6px; display: inline-block; min-width: 60px; text-align: center; }
+        .ap-log-thinking .ap-type { background: #667eea33; color: #667eea; }
+        .ap-log-assistant .ap-type { background: #10b98133; color: #10b981; }
+        .ap-log-tool_call .ap-type { background: #f59e0b33; color: #f59e0b; }
+        .ap-log-tool_result .ap-type { background: #06b6d433; color: #06b6d4; }
+        .ap-log-status .ap-type { background: #8b5cf633; color: #8b5cf6; }
+        .ap-log-system .ap-type { background: #ef444433; color: #ef4444; }
+        .ap-log-error .ap-type { background: #ef444433; color: #ef4444; }
+        .ap-content { color: #ccc; word-break: break-word; }
         .status-box { background: #16213e; border: 1px solid #333; border-radius: 12px; padding: 18px; margin-top: 15px; }
         .status-box h3 { color: #667eea; margin-bottom: 12px; font-size: 1em; }
         .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; }
@@ -160,6 +171,7 @@ html = r'''<!DOCTYPE html>
             <button class="tab" onclick="showTab('generate')" data-i18n="tab_generate">Генерация</button>
             <button class="tab" onclick="showTab('compare')" data-i18n="tab_compare">Сравнение</button>
             <button class="tab" onclick="showTab('models')" data-i18n="tab_models">Модели</button>
+            <button class="tab" onclick="showTab('autopilot')" data-i18n="tab_autopilot" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;">Автопилот</button>
         </div>
 
         <!-- ПОМОЩЬ -->
@@ -441,6 +453,62 @@ html = r'''<!DOCTYPE html>
             <h2 data-i18n="my_models">Мои модели</h2>
             <button class="btn btn-success" onclick="loadModelsList()" data-i18n="btn_refresh">Обновить</button>
             <div id="models_list" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- АВТОПИЛОТ -->
+        <div id="autopilot" class="tab-content">
+            <h2 data-i18n="autopilot_title" style="background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">LLM Автопилот</h2>
+            <p data-i18n="autopilot_desc">Опишите цель — AI подберёт данные, создаст и обучит модель автоматически</p>
+
+            <div class="info-card">
+                <h3 data-i18n="autopilot_provider_title">Настройки LLM</h3>
+                <div class="grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="form-group">
+                        <label data-i18n="autopilot_provider">Провайдер:</label>
+                        <select id="ap_provider" onchange="updateProviderFields()">
+                            <option value="openai">OpenAI (GPT-4o)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="openai_compatible">Local / Ollama / LM Studio</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="autopilot_model">Модель:</label>
+                        <input type="text" id="ap_model" placeholder="gpt-4o" data-i18n-placeholder="autopilot_model_hint">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="form-group">
+                        <label data-i18n="autopilot_api_key">API ключ:</label>
+                        <input type="password" id="ap_api_key" placeholder="sk-..." style="font-family:monospace;">
+                    </div>
+                    <div class="form-group" id="ap_endpoint_group" style="display:none;">
+                        <label data-i18n="autopilot_endpoint">Endpoint:</label>
+                        <input type="text" id="ap_endpoint" placeholder="http://localhost:11434/v1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3 data-i18n="autopilot_goal">Цель</h3>
+                <div class="form-group">
+                    <textarea id="ap_goal" rows="3" style="width:100%;resize:vertical;"
+                        data-i18n-placeholder="autopilot_goal_placeholder"
+                        placeholder="Хочу модель, которая пишет детективные рассказы в стиле Шерлока Холмса на английском"></textarea>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:10px;">
+                    <button class="btn btn-primary" onclick="startAutopilot()" id="ap_start_btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" data-i18n="autopilot_start">Запустить автопилот</button>
+                    <button class="btn btn-danger" onclick="stopAutopilot()" id="ap_stop_btn" style="display:none;" data-i18n="autopilot_stop">Остановить</button>
+                </div>
+            </div>
+
+            <div id="ap_state_box" class="alert alert-info" style="display:none;margin-top:15px;">
+                <span id="ap_state_text"></span>
+            </div>
+
+            <div id="ap_log_box" class="status-box" style="display:none;margin-top:15px;">
+                <h3 data-i18n="autopilot_log">Журнал действий</h3>
+                <div id="ap_log_entries" style="max-height:500px;overflow-y:auto;font-size:0.85em;"></div>
+            </div>
         </div>
     </div>
 
@@ -1081,6 +1149,29 @@ var TRANSLATIONS = {
         no_file_chosen: 'Файл не выбран',
         radar_generation: 'Генерация',
         eta_sec: 'сек', eta_min: 'мин', eta_h: 'ч', eta_m: 'м',
+        tab_autopilot: 'Автопилот',
+        autopilot_title: 'LLM Автопилот',
+        autopilot_desc: 'Опишите цель — AI подберёт данные, создаст и обучит модель автоматически',
+        autopilot_provider_title: 'Настройки LLM',
+        autopilot_provider: 'Провайдер:',
+        autopilot_model: 'Модель:',
+        autopilot_model_hint: 'gpt-4o',
+        autopilot_api_key: 'API ключ:',
+        autopilot_endpoint: 'Endpoint:',
+        autopilot_goal: 'Цель',
+        autopilot_goal_placeholder: 'Хочу модель, которая пишет детективные рассказы в стиле Шерлока Холмса на английском',
+        autopilot_start: 'Запустить автопилот',
+        autopilot_stop: 'Остановить',
+        autopilot_log: 'Журнал действий',
+        autopilot_enter_goal: 'Введите цель для автопилота',
+        autopilot_enter_key: 'Введите API ключ',
+        autopilot_state_idle: 'Не запущен',
+        autopilot_state_planning: 'Планирование...',
+        autopilot_state_executing: 'Выполнение действий...',
+        autopilot_state_monitoring: 'Мониторинг обучения...',
+        autopilot_state_completed: 'Завершено!',
+        autopilot_state_error: 'Ошибка',
+        autopilot_state_stopped: 'Остановлен',
         btn_attach: '+ Прикрепить', btn_detach: 'Открепить',
         filter_all: 'Все',
         no_datasets: 'Нет датасетов.', no_attached: 'Нет прикреплённых.',
@@ -1209,6 +1300,29 @@ var TRANSLATIONS = {
         no_file_chosen: 'No file chosen',
         radar_generation: 'Generation',
         eta_sec: 's', eta_min: 'min', eta_h: 'h', eta_m: 'm',
+        tab_autopilot: 'Autopilot',
+        autopilot_title: 'LLM Autopilot',
+        autopilot_desc: 'Describe your goal \u2014 AI will select data, create and train a model automatically',
+        autopilot_provider_title: 'LLM Settings',
+        autopilot_provider: 'Provider:',
+        autopilot_model: 'Model:',
+        autopilot_model_hint: 'gpt-4o',
+        autopilot_api_key: 'API Key:',
+        autopilot_endpoint: 'Endpoint:',
+        autopilot_goal: 'Goal',
+        autopilot_goal_placeholder: 'I want a model that writes detective stories like Sherlock Holmes in English',
+        autopilot_start: 'Start Autopilot',
+        autopilot_stop: 'Stop',
+        autopilot_log: 'Action Log',
+        autopilot_enter_goal: 'Enter a goal for the autopilot',
+        autopilot_enter_key: 'Enter API key',
+        autopilot_state_idle: 'Not running',
+        autopilot_state_planning: 'Planning...',
+        autopilot_state_executing: 'Executing actions...',
+        autopilot_state_monitoring: 'Monitoring training...',
+        autopilot_state_completed: 'Completed!',
+        autopilot_state_error: 'Error',
+        autopilot_state_stopped: 'Stopped',
         btn_attach: '+ Attach', btn_detach: 'Detach',
         filter_all: 'All',
         no_datasets: 'No datasets.', no_attached: 'No attached datasets.',
@@ -1232,6 +1346,93 @@ var TRANSLATIONS = {
         rl_length: 'Length', rl_vocabulary: 'Vocabulary', rl_naturalness: 'Naturalness',
     }
 };
+
+// === AUTOPILOT ===
+var autopilotPollInterval = null;
+var autopilotLogSince = 0;
+
+function updateProviderFields() {
+    var p = document.getElementById('ap_provider').value;
+    document.getElementById('ap_endpoint_group').style.display = p === 'openai_compatible' ? 'block' : 'none';
+    var m = document.getElementById('ap_model');
+    if (p === 'openai') m.placeholder = 'gpt-4o';
+    else if (p === 'anthropic') m.placeholder = 'claude-sonnet-4-20250514';
+    else m.placeholder = 'llama3';
+}
+
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function startAutopilot() {
+    var goal = document.getElementById('ap_goal').value.trim();
+    if (!goal) { alert(t('autopilot_enter_goal')); return; }
+    var apiKey = document.getElementById('ap_api_key').value.trim();
+    var provider = document.getElementById('ap_provider').value;
+    if (provider !== 'openai_compatible' && !apiKey) { alert(t('autopilot_enter_key')); return; }
+
+    var body = {
+        goal: goal,
+        provider: provider,
+        api_key: apiKey,
+        endpoint: document.getElementById('ap_endpoint').value || null,
+        model: document.getElementById('ap_model').value || null
+    };
+
+    fetch('/autopilot/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.status === 'started') {
+            document.getElementById('ap_start_btn').style.display = 'none';
+            document.getElementById('ap_stop_btn').style.display = 'inline-block';
+            document.getElementById('ap_log_box').style.display = 'block';
+            document.getElementById('ap_log_entries').innerHTML = '';
+            document.getElementById('ap_state_box').style.display = 'block';
+            autopilotLogSince = 0;
+            autopilotPollInterval = setInterval(pollAutopilot, 2000);
+        } else {
+            alert(data.detail || 'Error starting autopilot');
+        }
+    })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+function pollAutopilot() {
+    fetch('/autopilot/status?since=' + autopilotLogSince)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var stateEl = document.getElementById('ap_state_text');
+        stateEl.textContent = t('autopilot_state_' + data.state);
+        document.getElementById('ap_state_box').style.display = 'block';
+
+        var container = document.getElementById('ap_log_entries');
+        data.log.forEach(function(entry) {
+            var div = document.createElement('div');
+            div.className = 'ap-log-entry ap-log-' + entry.type;
+            var timeStr = entry.timestamp ? entry.timestamp.substr(11, 8) : '';
+            div.innerHTML = '<span class="ap-time">' + timeStr + '</span>' +
+                '<span class="ap-type">' + entry.type + '</span>' +
+                '<span class="ap-content">' + escapeHtml(entry.content) + '</span>';
+            container.appendChild(div);
+        });
+        autopilotLogSince = data.log_count;
+        container.scrollTop = container.scrollHeight;
+
+        if (['completed','error','stopped','idle'].indexOf(data.state) !== -1) {
+            clearInterval(autopilotPollInterval);
+            autopilotPollInterval = null;
+            document.getElementById('ap_start_btn').style.display = 'inline-block';
+            document.getElementById('ap_stop_btn').style.display = 'none';
+        }
+    });
+}
+
+function stopAutopilot() {
+    fetch('/autopilot/stop', {method:'POST'})
+    .then(function(r) { return r.json(); });
+}
 
 function switchLanguage(lang) {
     currentLang = lang;

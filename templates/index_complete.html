@@ -37,13 +37,23 @@
         .btn-success:hover { background: #059669; }
         .btn-danger { background: #ef4444; color: white; }
         .btn-danger:hover { background: #dc2626; }
-        .btn-sm { padding: 4px 8px; font-size: 12px; min-width: auto; }
         .btn-outline { background: transparent; color: #667eea; border: 1px solid #667eea; }
         .btn-outline:hover { background: #667eea22; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
         .chart-container { position: relative; height: 300px; margin: 15px 0; background: #16213e; border-radius: 12px; padding: 15px; border: 1px solid #333; }
+        .ap-log-entry { padding: 6px 0; border-bottom: 1px solid #222; line-height: 1.6; }
+        .ap-time { color: #555; font-family: monospace; font-size: 0.8em; margin-right: 6px; }
+        .ap-type { font-weight: 600; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; margin-right: 6px; display: inline-block; min-width: 60px; text-align: center; }
+        .ap-log-thinking .ap-type { background: #667eea33; color: #667eea; }
+        .ap-log-assistant .ap-type { background: #10b98133; color: #10b981; }
+        .ap-log-tool_call .ap-type { background: #f59e0b33; color: #f59e0b; }
+        .ap-log-tool_result .ap-type { background: #06b6d433; color: #06b6d4; }
+        .ap-log-status .ap-type { background: #8b5cf633; color: #8b5cf6; }
+        .ap-log-system .ap-type { background: #ef444433; color: #ef4444; }
+        .ap-log-error .ap-type { background: #ef444433; color: #ef4444; }
+        .ap-content { color: #ccc; word-break: break-word; }
         .status-box { background: #16213e; border: 1px solid #333; border-radius: 12px; padding: 18px; margin-top: 15px; }
         .status-box h3 { color: #667eea; margin-bottom: 12px; font-size: 1em; }
         .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; }
@@ -110,32 +120,6 @@
         .radar-container { height: 250px; }
         .search-box { display: flex; gap: 8px; margin-bottom: 15px; }
         .search-box input { flex: 1; }
-        /* reward прогресс-бары */
-        .reward-bar-row { margin: 7px 0; }
-        .reward-bar-label { display: flex; justify-content: space-between; font-size: 0.82em; color: #ccc; margin-bottom: 3px; }
-        .reward-bar-label .rbl-name { font-weight: 600; color: #aaa; }
-        .reward-bar-label .rbl-val { color: #e0e0e0; }
-        .reward-bar-label .rbl-delta { font-size: 0.85em; margin-left: 6px; }
-        .reward-bar-bg { width: 100%; height: 8px; background: #222; border-radius: 4px; overflow: hidden; }
-        .reward-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
-        /* live-карточки итераций */
-        .iter-card { background: #0f0f23; border: 1px solid #2a2a4a; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; animation: fadeIn 0.4s ease; }
-        .iter-card:first-child { border-color: #667eea; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
-        .iter-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .iter-card-num { font-weight: 700; color: #667eea; font-size: 0.85em; }
-        .iter-card-time { font-size: 0.75em; color: #555; }
-        .iter-card-metrics { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 6px; }
-        .iter-metric { font-size: 0.8em; }
-        .iter-metric .im-label { color: #666; }
-        .iter-metric .im-val { font-weight: 700; color: #ccc; margin-left: 3px; }
-        .iter-metric .im-delta { font-size: 0.85em; margin-left: 3px; }
-        .iter-sample { font-size: 0.78em; color: #888; font-style: italic; border-left: 2px solid #333; padding-left: 8px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        /* умный анализ */
-        .analysis-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 0; border-bottom: 1px solid #1a1a2e; font-size: 0.85em; line-height: 1.4; }
-        .analysis-item:last-child { border-bottom: none; }
-        .analysis-icon { font-size: 1.1em; flex-shrink: 0; margin-top: 1px; }
-        .analysis-text { color: #ccc; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0f0f23; }
         ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
@@ -157,24 +141,6 @@
             </div>
         </div>
 
-        <!-- GPU / CPU статус-бар -->
-        <div id="gpu-banner" style="padding:10px 20px; display:flex; align-items:center; gap:12px; background:#0f0f23; border-bottom:1px solid #222; flex-wrap:wrap;">
-            <div id="gpu-indicator" style="display:flex;align-items:center;gap:8px;">
-                <span id="gpu-dot" style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
-                <span id="gpu-label" style="font-size:0.85em;font-weight:600;color:#aaa;" data-i18n="gpu_checking">Проверяем устройство...</span>
-            </div>
-            <div id="gpu-install-area" style="display:none;flex:1;align-items:center;gap:10px;flex-wrap:wrap;">
-                <button onclick="installGPU()" id="gpu-install-btn" class="btn btn-success" style="padding:6px 16px;font-size:0.8em;margin:0;" data-i18n="gpu_activate">⚡ Активировать GPU</button>
-                <div id="gpu-install-progress" style="display:none;flex:1;min-width:200px;">
-                    <div class="progress-bar" style="height:16px;margin:0;">
-                        <div id="gpu-progress-fill" class="progress-fill" style="width:0%;font-size:0.7em;">0%</div>
-                    </div>
-                    <div id="gpu-install-msg" style="font-size:0.75em;color:#aaa;margin-top:4px;"></div>
-                </div>
-            </div>
-            <div id="gpu-restart-notice" style="display:none;background:#10b98122;border:1px solid #10b981;border-radius:8px;padding:6px 14px;font-size:0.8em;color:#10b981;" data-i18n="gpu_restart_msg">✅ GPU установлен! Перезапусти сервер и обнови страницу.</div>
-        </div>
-
         <div class="tabs">
             <button class="tab active" onclick="showTab('help')" data-i18n="tab_help">Помощь</button>
             <button class="tab" onclick="showTab('catalog')" data-i18n="tab_catalog">Каталог</button>
@@ -184,6 +150,7 @@
             <button class="tab" onclick="showTab('generate')" data-i18n="tab_generate">Генерация</button>
             <button class="tab" onclick="showTab('compare')" data-i18n="tab_compare">Сравнение</button>
             <button class="tab" onclick="showTab('models')" data-i18n="tab_models">Модели</button>
+            <button class="tab" onclick="showTab('autopilot')" data-i18n="tab_autopilot" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;">Автопилот</button>
         </div>
 
         <!-- ПОМОЩЬ -->
@@ -258,17 +225,17 @@
                     <div class="preset-card" onclick="applyPreset('quick')" id="preset_quick">
                         <h4 data-i18n="preset_quick">Быстрый тест</h4>
                         <p class="preset-desc" data-i18n="preset_quick_desc">~5 минут, базовое качество</p>
-                        <p class="preset-specs" data-i18n="preset_quick_specs">128d / 4 слоя / 1K итер</p>
+                        <p class="preset-specs">128d / 4 layers / 1K iter</p>
                     </div>
                     <div class="preset-card" onclick="applyPreset('standard')" id="preset_standard">
                         <h4 data-i18n="preset_standard">Стандарт</h4>
                         <p class="preset-desc" data-i18n="preset_standard_desc">~2 часа, хорошее качество</p>
-                        <p class="preset-specs" data-i18n="preset_standard_specs">256d / 6 слоёв / 10K итер</p>
+                        <p class="preset-specs">256d / 6 layers / 10K iter</p>
                     </div>
                     <div class="preset-card" onclick="applyPreset('quality')" id="preset_quality">
                         <h4 data-i18n="preset_quality">Качество</h4>
                         <p class="preset-desc" data-i18n="preset_quality_desc">~24 часа, лучший результат</p>
-                        <p class="preset-specs" data-i18n="preset_quality_specs">512d / 12 слоёв / 100K итер</p>
+                        <p class="preset-specs">512d / 12 layers / 100K iter</p>
                     </div>
                 </div>
                 <div id="hw_recommendation" style="margin-top:10px;"></div>
@@ -359,16 +326,7 @@
                 </div>
             </div>
             <button class="btn btn-primary" onclick="startTraining()" data-i18n="btn_start_training">Начать обучение</button>
-            <button class="btn btn-success" onclick="resumeTraining()" data-i18n="btn_resume_training">Продолжить</button>
             <button class="btn btn-danger" onclick="stopTraining()" data-i18n="btn_stop_training">Остановить</button>
-            <div id="live_gen_box" class="status-box" style="display:none;margin-top:15px;">
-                <h3 data-i18n="live_generation">🔮 Генерация в реальном времени</h3>
-                <div style="display:flex;gap:8px;margin-bottom:10px;">
-                    <input type="text" id="live_gen_prompt" placeholder="Привет" style="flex:1;" data-i18n-placeholder="prompt_placeholder">
-                    <button class="btn btn-outline btn-sm" onclick="liveGenerate()" data-i18n="btn_generate">Сгенерировать</button>
-                </div>
-                <div id="live_gen_output" style="min-height:40px;padding:10px;background:#0a0a1a;border-radius:8px;color:#ccc;font-size:0.9em;" data-i18n="text_placeholder">Текст появится здесь...</div>
-            </div>
 
             <div class="milestones" id="milestones">
                 <div class="milestone" data-pct="1"><div class="milestone-dot">1</div><span class="milestone-label" data-i18n="ms_start">Старт</span></div>
@@ -398,22 +356,9 @@
                 <div class="status-item"><span class="status-label" data-i18n="remaining_label">Осталось:</span><span class="status-value" id="eta">--</span></div>
                 <div class="status-item"><span class="status-label" data-i18n="memory_label">Память:</span><span class="status-value" id="memory_usage">--</span></div>
             </div>
-            <!-- Умный анализ: что изменилось -->
-            <div class="status-box" id="smart_analysis_box" style="display:none;">
-                <h3 data-i18n="smart_analysis_title">🧠 Что изменилось</h3>
-                <div id="smart_analysis_list"></div>
-            </div>
-
-            <!-- Компоненты reward — прогресс-бары -->
             <div class="status-box" id="reward_components_box" style="display:none;">
                 <h3 data-i18n="reward_components">Компоненты награды</h3>
                 <div id="reward_components_list"></div>
-            </div>
-
-            <!-- Live-лента итераций -->
-            <div class="status-box" id="iteration_feed_box" style="display:none;">
-                <h3 data-i18n="iteration_feed_title">📍 Живая лента итераций</h3>
-                <div id="iteration_feed" style="max-height:320px;overflow-y:auto;"></div>
             </div>
         </div>
 
@@ -486,25 +431,63 @@
         <div id="models" class="tab-content">
             <h2 data-i18n="my_models">Мои модели</h2>
             <button class="btn btn-success" onclick="loadModelsList()" data-i18n="btn_refresh">Обновить</button>
-            <div class="info-card" style="margin-top:15px;">
-                <h3 data-i18n="upload_model_title">Загрузить модель</h3>
-                <div class="recommended" data-i18n="upload_model_hint">Загрузите .pt файл модели (state_dict или полный чекпоинт)</div>
-                <div style="display:flex;gap:10px;margin:10px 0;align-items:center;flex-wrap:wrap;">
-                    <input type="text" id="upload_model_name" placeholder="my_model" style="width:200px;" data-i18n-placeholder="placeholder_name">
-                    <input type="file" id="model_file_input" accept=".pt,.pth,.bin" style="display:none;" onchange="handleModelFileSelect()">
-                    <button class="btn btn-outline" onclick="document.getElementById('model_file_input').click()" data-i18n="btn_choose_file">Выбрать файл</button>
-                    <span id="model_file_name" style="color:#888;font-size:0.9em;" data-i18n="no_file_chosen">Файл не выбран</span>
-                </div>
-                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                    <button class="btn btn-primary" onclick="uploadModel()" data-i18n="btn_upload_model">Загрузить модель</button>
-                    <span style="color:#666;">|</span>
-                    <input type="file" id="tokenizer_file_input" accept=".pkl" style="display:none;" onchange="handleTokenizerSelect()">
-                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('tokenizer_file_input').click()" data-i18n="btn_upload_tokenizer">+ Токенизатор (.pkl)</button>
-                    <span id="tokenizer_file_name" style="color:#888;font-size:0.85em;"></span>
-                </div>
-                <div id="upload_model_status"></div>
-            </div>
             <div id="models_list" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- АВТОПИЛОТ -->
+        <div id="autopilot" class="tab-content">
+            <h2 data-i18n="autopilot_title" style="background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">LLM Автопилот</h2>
+            <p data-i18n="autopilot_desc">Опишите цель — AI подберёт данные, создаст и обучит модель автоматически</p>
+
+            <div class="info-card">
+                <h3 data-i18n="autopilot_provider_title">Настройки LLM</h3>
+                <div class="grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="form-group">
+                        <label data-i18n="autopilot_provider">Провайдер:</label>
+                        <select id="ap_provider" onchange="updateProviderFields()">
+                            <option value="openai">OpenAI (GPT-4o)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="openai_compatible">Local / Ollama / LM Studio</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="autopilot_model">Модель:</label>
+                        <input type="text" id="ap_model" placeholder="gpt-4o" data-i18n-placeholder="autopilot_model_hint">
+                    </div>
+                </div>
+                <div class="grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="form-group">
+                        <label data-i18n="autopilot_api_key">API ключ:</label>
+                        <input type="password" id="ap_api_key" placeholder="sk-..." style="font-family:monospace;">
+                    </div>
+                    <div class="form-group" id="ap_endpoint_group" style="display:none;">
+                        <label data-i18n="autopilot_endpoint">Endpoint:</label>
+                        <input type="text" id="ap_endpoint" placeholder="http://localhost:11434/v1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3 data-i18n="autopilot_goal">Цель</h3>
+                <div class="form-group">
+                    <textarea id="ap_goal" rows="3" style="width:100%;resize:vertical;"
+                        data-i18n-placeholder="autopilot_goal_placeholder"
+                        placeholder="Хочу модель, которая пишет детективные рассказы в стиле Шерлока Холмса на английском"></textarea>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:10px;">
+                    <button class="btn btn-primary" onclick="startAutopilot()" id="ap_start_btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" data-i18n="autopilot_start">Запустить автопилот</button>
+                    <button class="btn btn-danger" onclick="stopAutopilot()" id="ap_stop_btn" style="display:none;" data-i18n="autopilot_stop">Остановить</button>
+                </div>
+            </div>
+
+            <div id="ap_state_box" class="alert alert-info" style="display:none;margin-top:15px;">
+                <span id="ap_state_text"></span>
+            </div>
+
+            <div id="ap_log_box" class="status-box" style="display:none;margin-top:15px;">
+                <h3 data-i18n="autopilot_log">Журнал действий</h3>
+                <div id="ap_log_entries" style="max-height:500px;overflow-y:auto;font-size:0.85em;"></div>
+            </div>
         </div>
     </div>
 
@@ -544,12 +527,6 @@ const PRESETS = {
     quality:  { d_model: 512, num_layers: 12, num_heads: 16, d_ff: 2048, max_seq_len: 512, vocab_size: 25000, max_iterations: 100000, batch_size: 32, learning_rate: 0.0001 },
 };
 
-function getRewardLabels() {
-    return {
-        diversity: t('rl_diversity'), coherence: t('rl_coherence'), repetition_penalty: t('rl_repetition'),
-        length_score: t('rl_length'), vocabulary_richness: t('rl_vocabulary'), bigram_naturalness: t('rl_naturalness')
-    };
-}
 var REWARD_LABELS = {
     diversity: 'Разнообразие', coherence: 'Когерентность', repetition_penalty: 'Без повторов',
     length_score: 'Длина', vocabulary_richness: 'Словарь', bigram_naturalness: 'Естественность'
@@ -582,11 +559,7 @@ async function loadCatalog(category) {
     const resp = await fetch(url);
     const data = await resp.json();
     const grid = document.getElementById('catalog_grid');
-    grid.innerHTML = data.datasets.map(d => {
-        var title = currentLang === 'en' ? (d.name || d.name_ru) : (d.name_ru || d.name);
-        var desc = currentLang === 'en' ? (d.description_en || d.description || '') : (d.description || '');
-        return '<div class="catalog-card"><h4>' + title + '</h4><p class="desc">' + desc + '</p><div class="badges"><span class="badge badge-lang">' + d.language + '</span><span class="badge badge-size">' + d.size_estimate + '</span><span class="badge badge-cat">' + d.difficulty + '</span>' + (d.downloaded ? '<span class="badge badge-downloaded">' + t('already_downloaded') + '</span>' : '') + '</div><div style="margin-top:8px;">' + (d.downloaded ? '<button class="btn btn-outline" disabled>' + t('already_downloaded') + '</button>' : '<button class="btn btn-primary" onclick="downloadCatalogDS(\'' + d.id + '\')">' + t('btn_download_ds') + '</button>') + ' <button class="btn btn-outline" onclick="previewDS(\'' + d.id + '\')">' + t('btn_preview') + '</button></div></div>';
-    }).join('');
+    grid.innerHTML = data.datasets.map(d => '<div class="catalog-card"><h4>' + (currentLang === 'en' ? (d.name || d.name_ru) : (d.name_ru || d.name)) + '</h4><p class="desc">' + (d.description || '') + '</p><div class="badges"><span class="badge badge-lang">' + d.language + '</span><span class="badge badge-size">' + d.size_estimate + '</span><span class="badge badge-cat">' + d.difficulty + '</span>' + (d.downloaded ? '<span class="badge badge-downloaded">' + t('already_downloaded') + '</span>' : '') + '</div><div style="margin-top:8px;">' + (d.downloaded ? '<button class="btn btn-outline" disabled>' + t('already_downloaded') + '</button>' : '<button class="btn btn-primary" onclick="downloadCatalogDS(\'' + d.id + '\')">' + t('btn_download_ds') + '</button>') + ' <button class="btn btn-outline" onclick="previewDS(\'' + d.id + '\')">' + t('btn_preview') + '</button></div></div>').join('');
 }
 
 async function downloadCatalogDS(id) {
@@ -662,13 +635,7 @@ async function loadHWRecommendation() {
     try {
         const resp = await fetch('/hardware_recommendation');
         const data = await resp.json();
-        var reason = t(data.reason_key) || data.reason;
-        if (data.reason_params) {
-            Object.keys(data.reason_params).forEach(function(k) {
-                reason = reason.replace('{' + k + '}', data.reason_params[k]);
-            });
-        }
-        document.getElementById('hw_recommendation').innerHTML = '<div class="alert alert-info">' + t('hw_recommendation') + ': <strong>' + data.preset.toUpperCase() + '</strong> — ' + reason + '</div>';
+        document.getElementById('hw_recommendation').innerHTML = '<div class="alert alert-info">' + t('hw_recommendation') + ': <strong>' + data.preset.toUpperCase() + '</strong> — ' + data.reason + '</div>';
     } catch(e) {}
 }
 
@@ -714,73 +681,43 @@ async function loadModelsSelect() {
     const data = await resp.json();
     ['train_model_name', 'gen_model_name', 'dataset_model_name', 'compare_model_name'].forEach(id => {
         const sel = document.getElementById(id);
-        if (!sel) return;
-        var prev = sel.value;
-        sel.innerHTML = data.models.map(m => '<option value="' + m.name + '">' + m.name + '</option>').join('');
-        if (prev && Array.from(sel.options).some(o => o.value === prev)) {
-            sel.value = prev;
-        }
+        if (sel) sel.innerHTML = data.models.map(m => '<option value="' + m.name + '">' + m.name + '</option>').join('');
     });
 }
 
 async function loadDatasets() {
-    var modelSel = document.getElementById('dataset_model_name');
-    var modelName = modelSel ? modelSel.value : '';
-    if (!modelName) {
-        // No model selected — show all datasets with delete buttons
-        var resp = await fetch('/books');
-        var data = await resp.json();
-        var div = document.getElementById('available_datasets');
-        if (div) {
-            div.innerHTML = data.books.map(function(b) {
-                var n = b.name||b;
-                return '<div class="dataset-item"><span>' + n + ' (' + ((b.size||0)/1024).toFixed(1) + ' KB)</span><button class="btn btn-danger btn-sm" onclick="deleteDS(\'' + n.replace(/'/g,"\\'") + '\')" title="' + t('btn_delete_ds') + '">✕</button></div>';
-            }).join('') || '<p style="color:#666;">' + t('no_datasets') + '</p>';
-        }
-        var attDiv = document.getElementById('attached_datasets');
-        if (attDiv) attDiv.innerHTML = '<p style="color:#666;">' + t('no_attached') + '</p>';
-        return;
+    const resp = await fetch('/books');
+    const data = await resp.json();
+    const div = document.getElementById('available_datasets');
+    if (div) {
+        div.innerHTML = data.books.map(b => '<div class="dataset-item"><span>' + (b.name||b) + ' (' + ((b.size||0)/1024).toFixed(1) + ' KB)</span><button class="btn btn-primary" onclick="attachDS(\'' + (b.name||b) + '\')">' + t('btn_attach') + '</button></div>').join('') || '<p style="color:#666;">' + t('no_datasets') + '</p>';
     }
-    try {
-        var resp2 = await fetch('/model_datasets/' + modelName);
-        var md = await resp2.json();
-        // Attached datasets
-        var attDiv2 = document.getElementById('attached_datasets');
-        if (attDiv2) {
-            attDiv2.innerHTML = md.attached.map(function(d) {
-                return '<div class="dataset-item"><span>' + d.name + ' (' + (d.size/1024).toFixed(1) + ' KB)</span><button class="btn btn-danger" onclick="detachDS(\'' + d.name.replace(/'/g,"\\'") + '\')">' + t('btn_detach') + '</button></div>';
-            }).join('') || '<p style="color:#666;">' + t('no_attached') + '</p>';
-        }
-        // Available = only NOT attached
-        var avDiv = document.getElementById('available_datasets');
-        if (avDiv) {
-            avDiv.innerHTML = md.available.map(function(b) {
-                var n = b.name||b;
-                return '<div class="dataset-item"><span>' + n + ' (' + ((b.size||0)/1024).toFixed(1) + ' KB)</span><div><button class="btn btn-primary" onclick="attachDS(\'' + n.replace(/'/g,"\\'") + '\')">' + t('btn_attach') + '</button> <button class="btn btn-danger btn-sm" onclick="deleteDS(\'' + n.replace(/'/g,"\\'") + '\')" title="' + t('btn_delete_ds') + '">✕</button></div></div>';
-            }).join('') || '<p style="color:#666;">' + t('no_datasets') + '</p>';
-        }
-    } catch(e) { console.error('loadDatasets error:', e); }
+    loadModelDatasets();
 }
 
-async function loadModelDatasets() { loadDatasets(); }
+async function loadModelDatasets() {
+    const modelName = document.getElementById('dataset_model_name') ? document.getElementById('dataset_model_name').value : '';
+    if (!modelName) return;
+    try {
+        const resp = await fetch('/model_datasets/' + modelName);
+        const data = await resp.json();
+        const div = document.getElementById('attached_datasets');
+        if (div) {
+            div.innerHTML = data.attached.map(d => '<div class="dataset-item"><span>' + d.name + ' (' + (d.size/1024).toFixed(1) + ' KB)</span><button class="btn btn-danger" onclick="detachDS(\'' + d.name + '\')">' + t('btn_detach') + '</button></div>').join('') || '<p style="color:#666;">' + t('no_attached') + '</p>';
+        }
+    } catch(e) {}
+}
 
 async function attachDS(name) {
-    var modelName = document.getElementById('dataset_model_name').value;
+    const modelName = document.getElementById('dataset_model_name').value;
     await fetch('/attach_dataset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model_name: modelName, dataset_name: name})});
-    loadDatasets();
+    loadModelDatasets();
 }
 
 async function detachDS(name) {
-    var modelName = document.getElementById('dataset_model_name').value;
+    const modelName = document.getElementById('dataset_model_name').value;
     await fetch('/detach_dataset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model_name: modelName, dataset_name: name})});
-    loadDatasets();
-}
-
-async function deleteDS(name) {
-    var msg = (t('confirm_delete_ds') || 'Delete dataset "{name}"?').replace('{name}', name);
-    if (!confirm(msg)) return;
-    await fetch('/delete_dataset/' + encodeURIComponent(name), { method:'DELETE' });
-    loadDatasets();
+    loadModelDatasets();
 }
 
 // === TRAINING ===
@@ -809,52 +746,23 @@ function initChart() {
     });
 }
 
-function getTrainingConfig() {
-    return {
+async function startTraining() {
+    const config = {
         model_name: document.getElementById('train_model_name').value,
         max_iterations: parseInt(document.getElementById('max_iterations').value),
         batch_size: parseInt(document.getElementById('batch_size').value),
         learning_rate: parseFloat(document.getElementById('learning_rate').value),
         save_every: parseInt(document.getElementById('save_every').value)
     };
-}
-
-async function startTraining() {
-    var config = getTrainingConfig();
     try {
         const resp = await fetch('/train', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config)});
         const data = await resp.json();
-        if (data.status === 'success') { startStatusUpdates(); document.getElementById('live_gen_box').style.display = 'block'; }
-        else { alert(data.detail || 'Error'); }
-    } catch(e) { alert(e.message); }
-}
-
-async function resumeTraining() {
-    var config = getTrainingConfig();
-    config.resume = true;
-    try {
-        const resp = await fetch('/train', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config)});
-        const data = await resp.json();
-        if (data.status === 'success') { startStatusUpdates(); document.getElementById('live_gen_box').style.display = 'block'; }
+        if (data.status === 'success') { startStatusUpdates(); }
         else { alert(data.detail || 'Error'); }
     } catch(e) { alert(e.message); }
 }
 
 async function stopTraining() { await fetch('/stop_training', {method:'POST'}); }
-
-var liveGenInterval = null;
-async function liveGenerate() {
-    var model = document.getElementById('train_model_name').value;
-    var prompt = document.getElementById('live_gen_prompt').value || 'Привет';
-    var el = document.getElementById('live_gen_output');
-    el.innerHTML = '<span style="color:#888;">' + t('generating') + '</span>';
-    try {
-        var resp = await fetch('/generate_live', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model_name: model, prompt: prompt, max_length: 60, temperature: 0.9})});
-        if (!resp.ok) { el.textContent = 'Error: ' + resp.status; return; }
-        var data = await resp.json();
-        el.textContent = data.generated_text || 'N/A';
-    } catch(e) { el.textContent = 'Error: ' + e.message; }
-}
 
 function startStatusUpdates() {
     if (statusInterval) clearInterval(statusInterval);
@@ -881,215 +789,14 @@ function updateWhatsHappening(s) {
     if (!s.is_training) { el.style.display = 'none'; return; }
     el.style.display = 'block';
     const p = s.max_iterations > 0 ? s.current_iteration / s.max_iterations : 0;
-    const loss = s.current_loss || 0;
-    const reward = s.current_reward || 0;
     let msg = '';
     if (p < 0.03) msg = t('wh_start');
-    else if (p < 0.15) msg = 'Loss: ' + loss.toFixed(2) + '. ' + t('wh_early');
-    else if (p < 0.4)  msg = t('wh_mid') + ' Reward: ' + reward.toFixed(3);
-    else if (p < 0.7)  msg = t('wh_late');
+    else if (p < 0.15) msg = 'Loss: ' + s.current_loss.toFixed(2) + '. ' + t('wh_early');
+    else if (p < 0.4) msg = t('wh_mid');
+    else if (p < 0.7) msg = t('wh_late');
     else if (p < 0.95) msg = t('wh_final');
-    else               msg = t('wh_done');
+    else msg = t('wh_done');
     txt.textContent = msg;
-}
-
-// ── УМНЫЙ АНАЛИЗ "что изменилось" ─────────────────────
-var _prevStatus = null;
-var _lossHistory = [];   // последние 20 значений loss
-var _rewardHistory = []; // последние 20 значений reward
-
-function updateSmartAnalysis(s) {
-    if (!s.is_training || !s.current_iteration) return;
-
-    // Накапливаем историю
-    if (s.current_loss) {
-        _lossHistory.push(s.current_loss);
-        if (_lossHistory.length > 20) _lossHistory.shift();
-    }
-    if (s.current_reward) {
-        _rewardHistory.push(s.current_reward);
-        if (_rewardHistory.length > 20) _rewardHistory.shift();
-    }
-
-    const box = document.getElementById('smart_analysis_box');
-    const list = document.getElementById('smart_analysis_list');
-    if (!box || !list) return;
-    box.style.display = 'block';
-
-    const items = [];
-
-    // Анализ loss
-    if (_lossHistory.length >= 5) {
-        const recent  = _lossHistory.slice(-5).reduce((a,b) => a+b,0) / 5;
-        const older   = _lossHistory.slice(0, 5).reduce((a,b) => a+b,0) / 5;
-        const lossChg = ((recent - older) / older * 100);
-        if (lossChg < -5) {
-            items.push({icon:'✅', text: t('an_loss_down').replace('{n}', Math.abs(lossChg).toFixed(1))});
-        } else if (lossChg > 3) {
-            items.push({icon:'⚠️', text: t('an_loss_up').replace('{n}', lossChg.toFixed(1))});
-        } else {
-            items.push({icon:'📊', text: t('an_loss_stable').replace('{n}', recent.toFixed(3))});
-        }
-    }
-
-    // Анализ reward
-    if (_rewardHistory.length >= 5) {
-        const rRecent = _rewardHistory.slice(-5).reduce((a,b) => a+b,0) / 5;
-        const rOlder  = _rewardHistory.slice(0,5).reduce((a,b) => a+b,0) / 5;
-        if (rOlder > 0) {
-            const rChg = ((rRecent - rOlder) / rOlder * 100);
-            if (rChg > 5)  items.push({icon:'📈', text: t('an_rew_up').replace('{n}', rChg.toFixed(1))});
-            else if (rChg < -5) items.push({icon:'📉', text: t('an_rew_down').replace('{n}', Math.abs(rChg).toFixed(1))});
-            else items.push({icon:'🎯', text: t('an_rew_stable').replace('{n}', rRecent.toFixed(3))});
-        }
-    }
-
-    // Val loss — оверфит
-    if (s.val_loss && s.current_loss) {
-        const ratio = s.val_loss / s.current_loss;
-        if (ratio > 1.15) {
-            items.push({icon:'🔴', text: t('an_overfit_hi').replace('{v}', s.val_loss.toFixed(3)).replace('{t}', s.current_loss.toFixed(3))});
-        } else if (ratio > 1.05) {
-            items.push({icon:'🟡', text: t('an_overfit_mid')});
-        } else {
-            items.push({icon:'🟢', text: t('an_overfit_ok')});
-        }
-    }
-
-    // Скорость
-    if (s.tokens_per_sec > 0) {
-        const dev = s.device === 'cuda' ? '🚀 GPU' : '🐢 CPU';
-        items.push({icon:'⚡', text: t('an_device').replace('{dev}', dev).replace('{n}', s.tokens_per_sec.toFixed(0))});
-    }
-
-    // Компоненты reward — что хуже/лучше всего
-    if (s.reward_components) {
-        const comps = Object.entries(s.reward_components);
-        const sorted = [...comps].sort((a,b) => a[1]-b[1]);
-        const worst = sorted[0];
-        const best  = sorted[sorted.length - 1];
-        if (worst) items.push({icon:'💡', text: t('an_weak').replace('{comp}', REWARD_LABELS[worst[0]]||worst[0]).replace('{n}', worst[1].toFixed(3))});
-        if (best)  items.push({icon:'🏆', text: t('an_best').replace('{comp}', REWARD_LABELS[best[0]]||best[0]).replace('{n}', best[1].toFixed(3))});
-    }
-
-    list.innerHTML = items.map(i =>
-        `<div class="analysis-item"><span class="analysis-icon">${i.icon}</span><span class="analysis-text">${i.text}</span></div>`
-    ).join('');
-
-    _prevStatus = s;
-}
-
-// ── REWARD КОМПОНЕНТЫ — прогресс-бары ─────────────────
-var _prevRewardComponents = {};
-
-function updateRewardComponents(s) {
-    if (!s.reward_components || !Object.keys(s.reward_components).length) return;
-    const box  = document.getElementById('reward_components_box');
-    const list = document.getElementById('reward_components_list');
-    if (!box || !list) return;
-    box.style.display = 'block';
-
-    const colors = {
-        diversity:           '#667eea',
-        coherence:           '#10b981',
-        repetition_penalty:  '#f59e0b',
-        length_score:        '#3b82f6',
-        vocabulary_richness: '#8b5cf6',
-        bigram_naturalness:  '#ec4899'
-    };
-
-    list.innerHTML = Object.entries(s.reward_components).map(([key, val]) => {
-        const label = REWARD_LABELS[key] || key;
-        const pct   = Math.min(100, Math.max(0, val * 100)).toFixed(0);
-        const color = colors[key] || '#667eea';
-        const prev  = _prevRewardComponents[key];
-        let deltaHtml = '';
-        if (prev !== undefined) {
-            const d = val - prev;
-            if (Math.abs(d) > 0.001) {
-                const sign  = d > 0 ? '+' : '';
-                const dColor = d > 0 ? '#10b981' : '#ef4444';
-                deltaHtml = `<span class="rbl-delta" style="color:${dColor}">${sign}${d.toFixed(3)}</span>`;
-            }
-        }
-        return `<div class="reward-bar-row">
-            <div class="reward-bar-label">
-                <span class="rbl-name">${label}</span>
-                <span class="rbl-val">${val.toFixed(3)} ${deltaHtml}</span>
-            </div>
-            <div class="reward-bar-bg">
-                <div class="reward-bar-fill" style="width:${pct}%;background:${color};"></div>
-            </div>
-        </div>`;
-    }).join('');
-
-    _prevRewardComponents = {...s.reward_components};
-}
-
-// ── LIVE-ЛЕНТА ИТЕРАЦИЙ ────────────────────────────────
-var _lastFeedIteration = 0;
-var _feedInterval = 200; // добавляем карточку каждые 200 итераций
-
-function updateIterationFeed(s) {
-    if (!s.is_training || !s.current_iteration) return;
-    if (s.current_iteration - _lastFeedIteration < _feedInterval) return;
-    _lastFeedIteration = s.current_iteration;
-
-    const box  = document.getElementById('iteration_feed_box');
-    const feed = document.getElementById('iteration_feed');
-    if (!box || !feed) return;
-    box.style.display = 'block';
-
-    const loss   = s.current_loss   ? s.current_loss.toFixed(4)   : '--';
-    const reward = s.current_reward ? s.current_reward.toFixed(4) : '--';
-    const ppl    = s.perplexity     ? s.perplexity.toFixed(1)     : '--';
-    const spd    = s.tokens_per_sec ? s.tokens_per_sec.toFixed(0) + ' tok/s' : '--';
-    const now    = new Date().toLocaleTimeString();
-
-    // Дельты с предыдущей карточкой
-    const prevLoss   = _prevStatus ? (_prevStatus.current_loss   || 0) : 0;
-    const prevReward = _prevStatus ? (_prevStatus.current_reward || 0) : 0;
-    const lossDelta   = prevLoss   ? ((s.current_loss   - prevLoss)   / prevLoss   * 100) : 0;
-    const rewardDelta = prevReward ? ((s.current_reward - prevReward) / prevReward * 100) : 0;
-
-    function deltaSpan(d, invert) {
-        if (!d || Math.abs(d) < 0.1) return '';
-        const good  = invert ? d < 0 : d > 0;
-        const color = good ? '#10b981' : '#ef4444';
-        const sign  = d > 0 ? '▲' : '▼';
-        return `<span style="color:${color};font-size:0.8em;margin-left:3px;">${sign}${Math.abs(d).toFixed(1)}%</span>`;
-    }
-
-    const card = document.createElement('div');
-    card.className = 'iter-card';
-    card.innerHTML = `
-        <div class="iter-card-header">
-            <span class="iter-card-num">📍 ${t('iter_label')} ${s.current_iteration.toLocaleString()}</span>
-            <span class="iter-card-time">${now}</span>
-        </div>
-        <div class="iter-card-metrics">
-            <div class="iter-metric">
-                <span class="im-label">Loss</span>
-                <span class="im-val">${loss}</span>${deltaSpan(lossDelta, true)}
-            </div>
-            <div class="iter-metric">
-                <span class="im-label">Reward</span>
-                <span class="im-val">${reward}</span>${deltaSpan(rewardDelta, false)}
-            </div>
-            <div class="iter-metric">
-                <span class="im-label">Perplexity</span>
-                <span class="im-val">${ppl}</span>
-            </div>
-            <div class="iter-metric">
-                <span class="im-label">${t('speed_short')}</span>
-                <span class="im-val">${spd}</span>
-            </div>
-        </div>`;
-
-    feed.insertBefore(card, feed.firstChild);
-
-    // Максимум 15 карточек
-    while (feed.children.length > 15) feed.removeChild(feed.lastChild);
 }
 
 async function updateTrainingStatus() {
@@ -1098,7 +805,6 @@ async function updateTrainingStatus() {
         const s = await resp.json();
         document.getElementById('is_training').textContent = s.is_training ? t('training_active') : t('training_idle');
         document.getElementById('is_training').style.color = s.is_training ? '#10b981' : '#888';
-        document.getElementById('live_gen_box').style.display = s.is_training ? 'block' : 'none';
         const pct = s.max_iterations > 0 ? (s.current_iteration / s.max_iterations * 100) : 0;
         document.getElementById('progress').style.width = pct.toFixed(1) + '%';
         document.getElementById('progress').textContent = pct.toFixed(1) + '%';
@@ -1111,9 +817,12 @@ async function updateTrainingStatus() {
         document.getElementById('memory_usage').textContent = s.memory_mb ? s.memory_mb.toFixed(0) + ' MB' : '--';
         updateMilestones(pct);
         updateWhatsHappening(s);
-        updateRewardComponents(s);
-        updateSmartAnalysis(s);
-        updateIterationFeed(s);
+        if (s.reward_components && Object.keys(s.reward_components).length > 0) {
+            document.getElementById('reward_components_box').style.display = 'block';
+            document.getElementById('reward_components_list').innerHTML = Object.entries(s.reward_components).map(function(e) {
+                return '<div class="status-item"><span class="status-label">' + (REWARD_LABELS[e[0]] || e[0]) + '</span><span class="status-value">' + e[1].toFixed(4) + '</span></div>';
+            }).join('');
+        }
         if (s.current_iteration > 0 && s.is_training) {
             chartData.labels.push(s.current_iteration);
             chartData.loss.push(s.current_loss);
@@ -1127,11 +836,9 @@ async function updateTrainingStatus() {
 
 // === GENERATION ===
 async function generateText() {
-    var promptVal = document.getElementById('prompt').value.trim();
-    if (!promptVal) { promptVal = document.getElementById('prompt').placeholder || 'Hello'; }
     const config = {
         model_name: document.getElementById('gen_model_name').value,
-        prompt: promptVal,
+        prompt: document.getElementById('prompt').value,
         max_length: parseInt(document.getElementById('max_length').value),
         temperature: parseFloat(document.getElementById('temperature').value),
         top_k: parseInt(document.getElementById('top_k').value)
@@ -1139,7 +846,6 @@ async function generateText() {
     document.getElementById('generated_output').innerHTML = '<span style="color:#888;">' + t('generating') + '</span>';
     try {
         const resp = await fetch('/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config)});
-        if (!resp.ok) { var err = await resp.text(); document.getElementById('generated_output').textContent = 'Error: ' + (resp.status === 500 ? JSON.parse(err).detail : err); return; }
         const data = await resp.json();
         if (data.token_details && data.token_details.length > 0) {
             document.getElementById('generated_output').innerHTML = data.token_details.map(function(t) {
@@ -1160,11 +866,9 @@ async function generateText() {
 }
 
 async function generateBeforeAfter() {
-    var promptVal2 = document.getElementById('prompt').value.trim();
-    if (!promptVal2) { promptVal2 = document.getElementById('prompt').placeholder || 'Hello'; }
     const config = {
         model_name: document.getElementById('gen_model_name').value,
-        prompt: promptVal2,
+        prompt: document.getElementById('prompt').value,
         max_length: parseInt(document.getElementById('max_length').value),
         temperature: parseFloat(document.getElementById('temperature').value),
         top_k: parseInt(document.getElementById('top_k').value)
@@ -1174,7 +878,6 @@ async function generateBeforeAfter() {
     document.getElementById('after_text').textContent = t('loading');
     try {
         const resp = await fetch('/generate_before_after', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config)});
-        if (!resp.ok) { var err = await resp.text(); try { err = JSON.parse(err).detail; } catch(x) {} document.getElementById('before_text').textContent = 'Error: ' + err; return; }
         const data = await resp.json();
         document.getElementById('before_text').textContent = data.before ? data.before.text : 'N/A';
         document.getElementById('after_text').textContent = data.after ? data.after.text : 'N/A';
@@ -1195,16 +898,12 @@ async function generateBeforeAfter() {
 async function loadCheckpoints() {
     var modelName = document.getElementById('compare_model_name').value;
     if (!modelName) return;
-    try {
-        var resp = await fetch('/checkpoints/' + modelName);
-        if (!resp.ok) return;
-        var data = await resp.json();
-        var opts = data.checkpoints.map(function(c) { return '<option value="' + c.iteration + '">Iteration ' + c.iteration + ' (' + c.size_mb + ' MB)</option>'; }).join('');
-        if (!opts) opts = '<option value="">(' + t('no_data') + ')</option>';
-        ['checkpoint_a', 'checkpoint_b'].forEach(function(id) {
-            document.getElementById(id).innerHTML = opts;
-        });
-    } catch(e) {}
+    var resp = await fetch('/checkpoints/' + modelName);
+    var data = await resp.json();
+    ['checkpoint_a', 'checkpoint_b'].forEach(function(id) {
+        var sel = document.getElementById(id);
+        sel.innerHTML = data.checkpoints.map(function(c) { return '<option value="' + c.iteration + '">Iteration ' + c.iteration + ' (' + c.size_mb + ' MB)</option>'; }).join('');
+    });
 }
 
 async function compareCheckpoints() {
@@ -1218,7 +917,6 @@ async function compareCheckpoints() {
     document.getElementById('compare_text_b').textContent = t('generating');
     try {
         var resp = await fetch('/compare_generations', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model_name: model, prompt: prompt, iterations: [iterA, iterB], max_length: 100})});
-        if (!resp.ok) { var err = await resp.text(); try { err = JSON.parse(err).detail; } catch(x) {} document.getElementById('compare_text_a').textContent = 'Error: ' + err; return; }
         var data = await resp.json();
         if (data.comparisons && data.comparisons.length >= 2) {
             var a = data.comparisons[0], b = data.comparisons[1];
@@ -1303,97 +1001,6 @@ async function deleteModel(name) {
     } catch(e) { alert('Error: ' + e.message); }
 }
 
-function handleModelFileSelect() {
-    var input = document.getElementById('model_file_input');
-    var nameInput = document.getElementById('upload_model_name');
-    if (input.files.length) {
-        var file = input.files[0];
-        var sizeMB = (file.size / 1024 / 1024).toFixed(1);
-        document.getElementById('model_file_name').textContent = file.name + ' (' + sizeMB + ' MB)';
-        // Auto-fill model name from filename if empty
-        if (!nameInput.value.trim()) {
-            var baseName = file.name.replace(/\.(pt|pth|bin)$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
-            nameInput.value = baseName;
-        }
-    } else {
-        document.getElementById('model_file_name').textContent = t('no_file_chosen');
-    }
-}
-
-function uploadModel() {
-    var name = document.getElementById('upload_model_name').value.trim();
-    var input = document.getElementById('model_file_input');
-    var statusDiv = document.getElementById('upload_model_status');
-    if (!name) { statusDiv.innerHTML = '<div class="alert alert-error">' + t('enter_model_name') + '</div>'; return; }
-    if (!input.files.length) { statusDiv.innerHTML = '<div class="alert alert-error">' + t('no_file_chosen') + '</div>'; return; }
-    var file = input.files[0];
-    var sizeMB = (file.size / 1024 / 1024).toFixed(1);
-    statusDiv.innerHTML = '<div class="alert alert-info"><div style="margin-bottom:8px;">' + t('uploading_model') + ' (' + sizeMB + ' MB)...</div><div class="progress-bar"><div class="progress-fill" id="upload_progress" style="width:0%">0%</div></div></div>';
-    var formData = new FormData();
-    formData.append('file', file);
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/upload_model/' + encodeURIComponent(name));
-    xhr.upload.onprogress = function(e) {
-        if (e.lengthComputable) {
-            var pct = Math.round(e.loaded / e.total * 100);
-            var bar = document.getElementById('upload_progress');
-            if (bar) { bar.style.width = pct + '%'; bar.textContent = pct + '%'; }
-        }
-    };
-    xhr.onload = function() {
-        if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-                var data = JSON.parse(xhr.responseText);
-                statusDiv.innerHTML = '<div class="alert alert-success">✅ ' + (data.message || 'OK') + '</div>';
-                loadModelsList();
-                loadModelsSelect();
-                input.value = '';
-                document.getElementById('upload_model_name').value = '';
-                document.getElementById('model_file_name').textContent = t('no_file_chosen');
-            } catch(e) {
-                statusDiv.innerHTML = '<div class="alert alert-success">✅ ' + t('upload_complete') + '</div>';
-                loadModelsList();
-                loadModelsSelect();
-            }
-        } else {
-            var errMsg = xhr.responseText;
-            try { errMsg = JSON.parse(errMsg).detail; } catch(x) {}
-            statusDiv.innerHTML = '<div class="alert alert-error">❌ ' + errMsg + '</div>';
-        }
-    };
-    xhr.onerror = function() {
-        statusDiv.innerHTML = '<div class="alert alert-error">❌ ' + t('upload_network_error') + '</div>';
-    };
-    xhr.send(formData);
-}
-
-function handleTokenizerSelect() {
-    var input = document.getElementById('tokenizer_file_input');
-    if (input.files.length) {
-        var file = input.files[0];
-        document.getElementById('tokenizer_file_name').textContent = file.name;
-        // Сразу загружаем если имя модели указано
-        var name = document.getElementById('upload_model_name').value.trim();
-        if (name) { uploadTokenizer(name, file); }
-        else { document.getElementById('upload_model_status').innerHTML = '<div class="alert alert-info">' + t('tokenizer_enter_name') + '</div>'; }
-    }
-}
-
-async function uploadTokenizer(modelName, file) {
-    var statusDiv = document.getElementById('upload_model_status');
-    statusDiv.innerHTML = '<div class="alert alert-info">' + t('uploading_tokenizer') + '</div>';
-    var formData = new FormData();
-    formData.append('file', file);
-    try {
-        var resp = await fetch('/upload_tokenizer/' + encodeURIComponent(modelName), { method: 'POST', body: formData });
-        if (!resp.ok) { var err = await resp.text(); try { err = JSON.parse(err).detail; } catch(x) {} statusDiv.innerHTML = '<div class="alert alert-error">❌ ' + err + '</div>'; return; }
-        var data = await resp.json();
-        statusDiv.innerHTML = '<div class="alert alert-success">✅ ' + (data.message || 'OK') + '</div>';
-        document.getElementById('tokenizer_file_input').value = '';
-        document.getElementById('tokenizer_file_name').textContent = '';
-    } catch(e) { statusDiv.innerHTML = '<div class="alert alert-error">❌ ' + e.message + '</div>'; }
-}
-
 // === WIZARD ===
 async function checkWizard() {
     try {
@@ -1450,11 +1057,8 @@ var TRANSLATIONS = {
         choose_preset: 'Выберите пресет',
         preset_quick: 'Быстрый тест', preset_standard: 'Стандарт', preset_quality: 'Качество',
         preset_quick_desc: '~5 минут, базовое качество',
-        preset_quick_specs: '128d / 4 слоя / 1K итер',
         preset_standard_desc: '~2 часа, хорошее качество',
-        preset_standard_specs: '256d / 6 слоёв / 10K итер',
         preset_quality_desc: '~24 часа, лучший результат',
-        preset_quality_specs: '512d / 12 слоёв / 100K итер',
         model_name: 'Название модели:',
         tip_vocab: 'Размер словаря. 10000-25000 оптимально.',
         tip_dmodel: 'Размерность модели. Больше = умнее но медленнее.',
@@ -1482,8 +1086,6 @@ var TRANSLATIONS = {
         speed_label: 'Скорость:', remaining_label: 'Осталось:', memory_label: 'Память:',
         training_idle: 'Не активно', training_active: 'Обучается...',
         reward_components: 'Компоненты награды',
-        smart_analysis_title: '🧠 Что изменилось',
-        iteration_feed_title: '📍 Живая лента итераций',
         generation_title: 'Генерация текста',
         generate_prompt: 'Промпт:',
         btn_generate: 'Сгенерировать',
@@ -1515,24 +1117,6 @@ var TRANSLATIONS = {
         preview: 'Превью',
         btn_close: 'Закрыть',
         hw_recommendation: 'Рекомендация',
-        hw_gpu_large: 'GPU {name} ({mem} GB) — можно обучать большие модели',
-        hw_gpu_standard: 'GPU {name} ({mem} GB) — стандартные модели',
-        hw_gpu_small: 'GPU с {mem} GB — только маленькие модели',
-        hw_cpu_standard: '{mem} GB RAM, CPU — стандартные модели (медленно)',
-        hw_cpu_quick: '{mem} GB RAM, CPU — только быстрые тесты',
-        btn_delete_ds: 'Удалить',
-        confirm_delete_ds: 'Удалить датасет "{name}"? Он будет откреплён от всех моделей.',
-        btn_resume_training: 'Продолжить',
-        live_generation: '🔮 Генерация в реальном времени',
-        upload_model_title: 'Загрузить модель',
-        upload_model_hint: 'Загрузите .pt файл модели (state_dict или полный чекпоинт)',
-        btn_upload_model: 'Загрузить модель',
-        uploading_model: 'Загрузка модели',
-        upload_complete: 'Модель загружена успешно',
-        upload_network_error: 'Ошибка сети при загрузке',
-        btn_upload_tokenizer: '+ Токенизатор (.pkl)',
-        uploading_tokenizer: 'Загрузка токенизатора...',
-        tokenizer_enter_name: 'Сначала введите название модели, затем загрузите токенизатор',
         status_idle: 'Не запущено',
         checkpoint_a_label: 'Чекпоинт A:',
         checkpoint_b_label: 'Чекпоинт B:',
@@ -1544,6 +1128,29 @@ var TRANSLATIONS = {
         no_file_chosen: 'Файл не выбран',
         radar_generation: 'Генерация',
         eta_sec: 'сек', eta_min: 'мин', eta_h: 'ч', eta_m: 'м',
+        tab_autopilot: 'Автопилот',
+        autopilot_title: 'LLM Автопилот',
+        autopilot_desc: 'Опишите цель — AI подберёт данные, создаст и обучит модель автоматически',
+        autopilot_provider_title: 'Настройки LLM',
+        autopilot_provider: 'Провайдер:',
+        autopilot_model: 'Модель:',
+        autopilot_model_hint: 'gpt-4o',
+        autopilot_api_key: 'API ключ:',
+        autopilot_endpoint: 'Endpoint:',
+        autopilot_goal: 'Цель',
+        autopilot_goal_placeholder: 'Хочу модель, которая пишет детективные рассказы в стиле Шерлока Холмса на английском',
+        autopilot_start: 'Запустить автопилот',
+        autopilot_stop: 'Остановить',
+        autopilot_log: 'Журнал действий',
+        autopilot_enter_goal: 'Введите цель для автопилота',
+        autopilot_enter_key: 'Введите API ключ',
+        autopilot_state_idle: 'Не запущен',
+        autopilot_state_planning: 'Планирование...',
+        autopilot_state_executing: 'Выполнение действий...',
+        autopilot_state_monitoring: 'Мониторинг обучения...',
+        autopilot_state_completed: 'Завершено!',
+        autopilot_state_error: 'Ошибка',
+        autopilot_state_stopped: 'Остановлен',
         btn_attach: '+ Прикрепить', btn_detach: 'Открепить',
         filter_all: 'Все',
         no_datasets: 'Нет датасетов.', no_attached: 'Нет прикреплённых.',
@@ -1565,29 +1172,6 @@ var TRANSLATIONS = {
         wh_done: 'Обучение почти завершено!',
         rl_diversity: 'Разнообразие', rl_coherence: 'Когерентность', rl_repetition: 'Без повторов',
         rl_length: 'Длина', rl_vocabulary: 'Словарь', rl_naturalness: 'Естественность',
-        iter_label: 'Итерация', speed_short: 'Скорость',
-        an_loss_down: 'Loss упал на {n}% — модель учится',
-        an_loss_up: 'Loss вырос на {n}% — нестабильность обучения',
-        an_loss_stable: 'Loss стабилен ({n}) — модель в равновесии',
-        an_rew_up: 'Reward вырос на {n}% — текст становится лучше',
-        an_rew_down: 'Reward упал на {n}% — следи за компонентами',
-        an_rew_stable: 'Reward стабилен ({n})',
-        an_overfit_hi: 'Val Loss ({v}) > Train Loss ({t}) — риск переобучения! Стоп скоро.',
-        an_overfit_mid: 'Val Loss немного выше Train Loss — небольшое переобучение, норма',
-        an_overfit_ok: 'Val Loss и Train Loss близки — переобучения нет',
-        an_device: '{dev} — {n} токенов/сек',
-        an_weak: 'Слабое место: {comp} ({n}) — над этим работает REINFORCE',
-        an_best: 'Лучший показатель: {comp} ({n})',
-        gpu_checking: 'Проверяем устройство...',
-        gpu_installing: '⏳ Устанавливаем поддержку GPU...',
-        gpu_installed: '✅ GPU установлен — нужен перезапуск',
-        gpu_error: '❌ Ошибка установки GPU',
-        gpu_cpu_mode: '🐢 CPU режим (обучение медленное)',
-        gpu_activate: '⚡ Активировать GPU',
-        gpu_retry: '🔄 Попробовать снова',
-        gpu_restart_msg: '✅ GPU установлен! Перезапусти сервер и обнови страницу.',
-        gpu_downloading: '⬇️ Скачиваем (~2 ГБ)...',
-        gpu_venv_hint: 'GPU уже установлен! Запусти start_gpu.bat для GPU-режима. Или продолжай на CPU.',
     },
     en: {
         subtitle: 'Create, train and analyze neural networks — simple and visual',
@@ -1624,11 +1208,8 @@ var TRANSLATIONS = {
         choose_preset: 'Choose a preset',
         preset_quick: 'Quick Test', preset_standard: 'Standard', preset_quality: 'Quality',
         preset_quick_desc: '~5 minutes, basic quality',
-        preset_quick_specs: '128d / 4 layers / 1K iter',
         preset_standard_desc: '~2 hours, good quality',
-        preset_standard_specs: '256d / 6 layers / 10K iter',
         preset_quality_desc: '~24 hours, best results',
-        preset_quality_specs: '512d / 12 layers / 100K iter',
         model_name: 'Model name:',
         tip_vocab: 'Vocabulary size. 10000-25000 is optimal.',
         tip_dmodel: 'Model dimension. Larger = smarter but slower.',
@@ -1656,8 +1237,6 @@ var TRANSLATIONS = {
         speed_label: 'Speed:', remaining_label: 'Remaining:', memory_label: 'Memory:',
         training_idle: 'Idle', training_active: 'Training...',
         reward_components: 'Reward Components',
-        smart_analysis_title: '🧠 What Changed',
-        iteration_feed_title: '📍 Live Iteration Feed',
         generation_title: 'Text Generation',
         generate_prompt: 'Prompt:',
         btn_generate: 'Generate',
@@ -1689,24 +1268,6 @@ var TRANSLATIONS = {
         preview: 'Preview',
         btn_close: 'Close',
         hw_recommendation: 'Recommendation',
-        hw_gpu_large: 'GPU {name} ({mem} GB) — can train large models',
-        hw_gpu_standard: 'GPU {name} ({mem} GB) — standard models',
-        hw_gpu_small: 'GPU with {mem} GB — small models only',
-        hw_cpu_standard: '{mem} GB RAM, CPU — standard models (slow)',
-        hw_cpu_quick: '{mem} GB RAM, CPU — quick tests only',
-        btn_delete_ds: 'Delete',
-        confirm_delete_ds: 'Delete dataset "{name}"? It will be detached from all models.',
-        btn_resume_training: 'Resume',
-        live_generation: '🔮 Live Generation',
-        upload_model_title: 'Upload Model',
-        upload_model_hint: 'Upload a .pt model file (state_dict or full checkpoint)',
-        btn_upload_model: 'Upload Model',
-        uploading_model: 'Uploading model',
-        upload_complete: 'Model uploaded successfully',
-        upload_network_error: 'Network error during upload',
-        btn_upload_tokenizer: '+ Tokenizer (.pkl)',
-        uploading_tokenizer: 'Uploading tokenizer...',
-        tokenizer_enter_name: 'Enter model name first, then upload tokenizer',
         status_idle: 'Not running',
         checkpoint_a_label: 'Checkpoint A:',
         checkpoint_b_label: 'Checkpoint B:',
@@ -1718,6 +1279,29 @@ var TRANSLATIONS = {
         no_file_chosen: 'No file chosen',
         radar_generation: 'Generation',
         eta_sec: 's', eta_min: 'min', eta_h: 'h', eta_m: 'm',
+        tab_autopilot: 'Autopilot',
+        autopilot_title: 'LLM Autopilot',
+        autopilot_desc: 'Describe your goal \u2014 AI will select data, create and train a model automatically',
+        autopilot_provider_title: 'LLM Settings',
+        autopilot_provider: 'Provider:',
+        autopilot_model: 'Model:',
+        autopilot_model_hint: 'gpt-4o',
+        autopilot_api_key: 'API Key:',
+        autopilot_endpoint: 'Endpoint:',
+        autopilot_goal: 'Goal',
+        autopilot_goal_placeholder: 'I want a model that writes detective stories like Sherlock Holmes in English',
+        autopilot_start: 'Start Autopilot',
+        autopilot_stop: 'Stop',
+        autopilot_log: 'Action Log',
+        autopilot_enter_goal: 'Enter a goal for the autopilot',
+        autopilot_enter_key: 'Enter API key',
+        autopilot_state_idle: 'Not running',
+        autopilot_state_planning: 'Planning...',
+        autopilot_state_executing: 'Executing actions...',
+        autopilot_state_monitoring: 'Monitoring training...',
+        autopilot_state_completed: 'Completed!',
+        autopilot_state_error: 'Error',
+        autopilot_state_stopped: 'Stopped',
         btn_attach: '+ Attach', btn_detach: 'Detach',
         filter_all: 'All',
         no_datasets: 'No datasets.', no_attached: 'No attached datasets.',
@@ -1739,31 +1323,95 @@ var TRANSLATIONS = {
         wh_done: 'Training is almost complete!',
         rl_diversity: 'Diversity', rl_coherence: 'Coherence', rl_repetition: 'No Repetition',
         rl_length: 'Length', rl_vocabulary: 'Vocabulary', rl_naturalness: 'Naturalness',
-        iter_label: 'Iteration', speed_short: 'Speed',
-        an_loss_down: 'Loss fell {n}% — model is learning',
-        an_loss_up: 'Loss rose {n}% — training instability',
-        an_loss_stable: 'Loss stable ({n}) — equilibrium',
-        an_rew_up: 'Reward up {n}% — quality improving',
-        an_rew_down: 'Reward down {n}% — check components',
-        an_rew_stable: 'Reward stable ({n})',
-        an_overfit_hi: 'Val Loss ({v}) > Train Loss ({t}) — overfitting risk! Stop soon.',
-        an_overfit_mid: 'Val Loss slightly above Train Loss — minor overfitting, normal',
-        an_overfit_ok: 'Val Loss and Train Loss close — no overfitting',
-        an_device: '{dev} — {n} tokens/sec',
-        an_weak: 'Weak point: {comp} ({n}) — REINFORCE is working on it',
-        an_best: 'Best metric: {comp} ({n})',
-        gpu_checking: 'Checking device...',
-        gpu_installing: '⏳ Installing GPU support...',
-        gpu_installed: '✅ GPU installed — restart required',
-        gpu_error: '❌ GPU installation error',
-        gpu_cpu_mode: '🐢 CPU mode (slow training)',
-        gpu_activate: '⚡ Activate GPU',
-        gpu_retry: '🔄 Retry',
-        gpu_restart_msg: '✅ GPU installed! Restart the server and refresh the page.',
-        gpu_downloading: '⬇️ Downloading (~2 GB)...',
-        gpu_venv_hint: 'GPU already installed! Run start_gpu.bat for GPU mode. Or continue on CPU.',
     }
 };
+
+// === AUTOPILOT ===
+var autopilotPollInterval = null;
+var autopilotLogSince = 0;
+
+function updateProviderFields() {
+    var p = document.getElementById('ap_provider').value;
+    document.getElementById('ap_endpoint_group').style.display = p === 'openai_compatible' ? 'block' : 'none';
+    var m = document.getElementById('ap_model');
+    if (p === 'openai') m.placeholder = 'gpt-4o';
+    else if (p === 'anthropic') m.placeholder = 'claude-sonnet-4-20250514';
+    else m.placeholder = 'llama3';
+}
+
+function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function startAutopilot() {
+    var goal = document.getElementById('ap_goal').value.trim();
+    if (!goal) { alert(t('autopilot_enter_goal')); return; }
+    var apiKey = document.getElementById('ap_api_key').value.trim();
+    var provider = document.getElementById('ap_provider').value;
+    if (provider !== 'openai_compatible' && !apiKey) { alert(t('autopilot_enter_key')); return; }
+
+    var body = {
+        goal: goal,
+        provider: provider,
+        api_key: apiKey,
+        endpoint: document.getElementById('ap_endpoint').value || null,
+        model: document.getElementById('ap_model').value || null
+    };
+
+    fetch('/autopilot/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.status === 'started') {
+            document.getElementById('ap_start_btn').style.display = 'none';
+            document.getElementById('ap_stop_btn').style.display = 'inline-block';
+            document.getElementById('ap_log_box').style.display = 'block';
+            document.getElementById('ap_log_entries').innerHTML = '';
+            document.getElementById('ap_state_box').style.display = 'block';
+            autopilotLogSince = 0;
+            autopilotPollInterval = setInterval(pollAutopilot, 2000);
+        } else {
+            alert(data.detail || 'Error starting autopilot');
+        }
+    })
+    .catch(function(e) { alert('Error: ' + e.message); });
+}
+
+function pollAutopilot() {
+    fetch('/autopilot/status?since=' + autopilotLogSince)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var stateEl = document.getElementById('ap_state_text');
+        stateEl.textContent = t('autopilot_state_' + data.state);
+        document.getElementById('ap_state_box').style.display = 'block';
+
+        var container = document.getElementById('ap_log_entries');
+        data.log.forEach(function(entry) {
+            var div = document.createElement('div');
+            div.className = 'ap-log-entry ap-log-' + entry.type;
+            var timeStr = entry.timestamp ? entry.timestamp.substr(11, 8) : '';
+            div.innerHTML = '<span class="ap-time">' + timeStr + '</span>' +
+                '<span class="ap-type">' + entry.type + '</span>' +
+                '<span class="ap-content">' + escapeHtml(entry.content) + '</span>';
+            container.appendChild(div);
+        });
+        autopilotLogSince = data.log_count;
+        container.scrollTop = container.scrollHeight;
+
+        if (['completed','error','stopped','idle'].indexOf(data.state) !== -1) {
+            clearInterval(autopilotPollInterval);
+            autopilotPollInterval = null;
+            document.getElementById('ap_start_btn').style.display = 'inline-block';
+            document.getElementById('ap_stop_btn').style.display = 'none';
+        }
+    });
+}
+
+function stopAutopilot() {
+    fetch('/autopilot/stop', {method:'POST'})
+    .then(function(r) { return r.json(); });
+}
 
 function switchLanguage(lang) {
     currentLang = lang;
@@ -1789,169 +1437,25 @@ function switchLanguage(lang) {
         }
     });
     // Update dynamic content using t()
-    REWARD_LABELS = getRewardLabels();
-    // Re-render dynamic tabs that use t() and currentLang
-    if (typeof currentCategory !== 'undefined') loadCatalog(currentCategory);
-    loadHWRecommendation();
-    loadDatasets();
-    checkGPUStatus();
+    if (typeof REWARD_LABELS !== 'undefined') {
+        REWARD_LABELS.diversity = t('rl_diversity');
+        REWARD_LABELS.coherence = t('rl_coherence');
+        REWARD_LABELS.repetition_penalty = t('rl_repetition');
+        REWARD_LABELS.length_score = t('rl_length');
+        REWARD_LABELS.vocabulary_richness = t('rl_vocabulary');
+        REWARD_LABELS.bigram_naturalness = t('rl_naturalness');
+    }
 }
 
 function t(key) {
     return (TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][key]) || key;
 }
 
-// ── GPU статус-бар ──────────────────────────────────────
-async function checkGPUStatus() {
-    try {
-        const r = await fetch('/gpu_status');
-        const d = await r.json();
-        const dot         = document.getElementById('gpu-dot');
-        const label       = document.getElementById('gpu-label');
-        const installArea = document.getElementById('gpu-install-area');
-        const restartNote = document.getElementById('gpu-restart-notice');
-        const installBtn  = document.getElementById('gpu-install-btn');
-        const prog        = document.getElementById('gpu-install-progress');
-        const fill        = document.getElementById('gpu-progress-fill');
-        const msg         = document.getElementById('gpu-install-msg');
-        const s           = d.install_status || {};
-
-        if (d.cuda_available) {
-            // GPU активен
-            dot.style.background = '#10b981';
-            label.style.color = '#10b981';
-            label.textContent = '🚀 GPU: ' + (d.gpu_name || 'CUDA');
-            installArea.style.display = 'none';
-            restartNote.style.display = 'none';
-
-        } else if (s.is_installing) {
-            // Идёт установка
-            dot.style.background = '#f59e0b';
-            label.style.color = '#f59e0b';
-            label.textContent = t('gpu_installing');
-            installArea.style.display = 'flex';
-            prog.style.display = 'block';
-            installBtn.style.display = 'none';
-            restartNote.style.display = 'none';
-            const pct = Math.max(0, s.progress || 0);
-            const isDownloading = (pct >= 30 && pct <= 84);
-            if (isDownloading) {
-                const wave = Math.floor(Date.now() / 1200) % 20;
-                fill.style.width = Math.min(84, pct + wave) + '%';
-                fill.textContent = t('gpu_downloading');
-            } else {
-                fill.style.width = pct + '%';
-                fill.textContent = pct + '%';
-            }
-            fill.style.background = '';
-            msg.innerHTML = (s.message || '').replace(/\n/g, '<br>');
-            msg.style.color = '#aaa';
-
-        } else if (s.progress === -1 || (s.error && s.error !== '')) {
-            // Ошибка установки
-            dot.style.background = '#ef4444';
-            label.style.color = '#ef4444';
-            label.textContent = t('gpu_error');
-            installArea.style.display = 'flex';
-            prog.style.display = 'block';
-            restartNote.style.display = 'none';
-            fill.style.width = '0%';
-            fill.style.background = '';
-            fill.textContent = '';
-            msg.innerHTML = (s.message || s.error || '').replace(/\n/g, '<br>');
-            msg.style.color = '#ef4444';
-            installBtn.style.display = '';
-            installBtn.disabled = false;
-            installBtn.textContent = t('gpu_retry');
-
-        } else if (s.success) {
-            // Только что установили (текущая сессия) — показать успех + инструкцию
-            dot.style.background = '#10b981';
-            label.style.color = '#10b981';
-            label.textContent = t('gpu_installed');
-            installArea.style.display = 'flex';
-            prog.style.display = 'block';
-            fill.style.width = '100%';
-            fill.style.background = '#10b981';
-            fill.textContent = '100%';
-            msg.style.color = '#10b981';
-            msg.innerHTML = t('gpu_restart_msg');
-            installBtn.style.display = 'none';
-            restartNote.style.display = 'none';
-
-        } else if (d.venv_gpu_ready) {
-            // Перезапущен обычным способом, но GPU-venv существует → CPU + подсказка
-            const pyVer = d.python_version || '';
-            dot.style.background = '#f59e0b';
-            label.style.color = '#f59e0b';
-            label.textContent = t('gpu_cpu_mode') + (pyVer ? ' (Python ' + pyVer + ')' : '');
-            installArea.style.display = 'flex';
-            prog.style.display = 'block';
-            fill.parentElement.style.display = 'none';  // скрыть progress-bar
-            msg.style.color = '#10b981';
-            msg.innerHTML = '💡 ' + t('gpu_venv_hint');
-            installBtn.style.display = '';
-            installBtn.disabled = false;
-            installBtn.textContent = t('gpu_activate');
-            restartNote.style.display = 'none';
-
-        } else {
-            // Чистый CPU режим — GPU не установлен
-            const pyVer = d.python_version || '';
-            dot.style.background = '#ef4444';
-            label.style.color = '#ef4444';
-            label.textContent = t('gpu_cpu_mode') + (pyVer ? ' (Python ' + pyVer + ')' : '');
-            installArea.style.display = 'flex';
-            prog.style.display = 'none';
-            msg.textContent = '';
-            msg.style.color = '';
-            installBtn.style.display = '';
-            installBtn.disabled = false;
-            installBtn.textContent = t('gpu_activate');
-            restartNote.style.display = 'none';
-        }
-    } catch(e) { /* сервер не ответил */ }
-}
-
-async function installGPU() {
-    const btn = document.getElementById('gpu-install-btn');
-    btn.disabled = true;
-    btn.textContent = '⏳...';
-    try {
-        const r = await fetch('/gpu_install', {method:'POST'});
-        const d = await r.json();
-        if (d.status === 'already_available') {
-            await checkGPUStatus();
-        } else if (d.status === 'installing') {
-            document.getElementById('gpu-install-progress').style.display = 'block';
-            btn.style.display = 'none';
-            // Мониторим установку каждые 2 секунды
-            const interval = setInterval(async () => {
-                try {
-                    const r2 = await fetch('/gpu_status');
-                    const d2 = await r2.json();
-                    await checkGPUStatus();
-                    if (!d2.install_status.is_installing) clearInterval(interval);
-                } catch(e) { clearInterval(interval); await checkGPUStatus(); }
-            }, 2000);
-        } else {
-            // already_installing или другой статус
-            await checkGPUStatus();
-        }
-    } catch(e) {
-        btn.disabled = false;
-        btn.textContent = t('gpu_activate');
-    }
-}
-// ────────────────────────────────────────────────────────
-
 window.addEventListener('load', function() {
     loadModelsSelect();
     initChart();
     startStatusUpdates();
     checkWizard();
-    checkGPUStatus();
-    setInterval(checkGPUStatus, 5000);
     // Restore saved language — always apply to set REWARD_LABELS etc.
     switchLanguage(currentLang);
 });
