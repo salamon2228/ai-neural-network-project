@@ -267,8 +267,16 @@ class LLMProvider:
         req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
         ctx = ssl.create_default_context()
 
-        resp = urllib.request.urlopen(req, timeout=120, context=ctx)
-        result = json.loads(resp.read().decode("utf-8"))
+        try:
+            resp = urllib.request.urlopen(req, timeout=120, context=ctx)
+            result = json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode("utf-8", errors="ignore")
+            # Groq/Llama: tool_use_failed with failed_generation containing <function=name>{args}</function>
+            parsed = self._parse_failed_tool_call(error_body)
+            if parsed:
+                return parsed
+            raise Exception(f"LLM API error {e.code}: {error_body}")
 
         choice = result["choices"][0]
         msg = choice["message"]
@@ -289,12 +297,52 @@ class LLMProvider:
                     "arguments": args
                 })
 
+        # Fallback: parse tool calls from content if model uses XML-like format
+        if not tool_calls and msg.get("content"):
+            parsed = self._parse_failed_tool_call(json.dumps({"error": {"failed_generation": msg["content"]}}))
+            if parsed and parsed.get("tool_calls"):
+                return parsed
+
         return {
             "content": msg.get("content"),
             "tool_calls": tool_calls,
             "stop_reason": choice.get("finish_reason", "stop"),
             "_raw_message": msg  # keep for conversation history
         }
+
+    def _parse_failed_tool_call(self, error_body: str) -> dict:
+        """Parse Groq/Llama failed_generation format: <function=name>{json}</function>"""
+        try:
+            err = json.loads(error_body)
+            failed = err.get("error", {}).get("failed_generation", "")
+            if not failed:
+                return None
+            # Parse <function=func_name>{"arg": "val"}</function>
+            import re
+            match = re.search(r'<function=(\w+)>\s*(\{.*?\})\s*</function>', failed, re.DOTALL)
+            if match:
+                func_name = match.group(1)
+                try:
+                    args = json.loads(match.group(2).replace("$", ""))
+                except json.JSONDecodeError:
+                    args = {}
+                tc_id = f"call_{func_name}_{id(failed)}"
+                return {
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tc_id,
+                        "name": func_name,
+                        "arguments": args
+                    }],
+                    "stop_reason": "tool_calls",
+                    "_raw_message": {"role": "assistant", "content": None, "tool_calls": [{
+                        "id": tc_id, "type": "function",
+                        "function": {"name": func_name, "arguments": json.dumps(args)}
+                    }]}
+                }
+        except (json.JSONDecodeError, KeyError):
+            pass
+        return None
 
     def _call_anthropic(self, messages: list, tools: list = None) -> dict:
         """Call Anthropic Messages API."""
