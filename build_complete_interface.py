@@ -480,7 +480,7 @@ html = r'''<!DOCTYPE html>
                     </div>
                     <div class="form-group">
                         <label data-i18n="autopilot_model">Модель:</label>
-                        <input type="text" id="ap_model" placeholder="gpt-4o" data-i18n-placeholder="autopilot_model_hint">
+                        <input type="text" id="ap_model" placeholder="llama-3.3-70b-versatile">
                     </div>
                 </div>
                 <div class="grid" style="grid-template-columns:1fr 1fr;">
@@ -1405,9 +1405,11 @@ function startAutopilot() {
 
     var sendProvider = provider;
     var sendEndpoint = document.getElementById('ap_endpoint').value || null;
+    var sendModel = document.getElementById('ap_model').value || null;
     if (provider === 'groq') {
         sendProvider = 'openai_compatible';
         sendEndpoint = 'https://api.groq.com/openai/v1';
+        if (!sendModel) sendModel = 'llama-3.3-70b-versatile';
     }
 
     var body = {
@@ -1415,7 +1417,7 @@ function startAutopilot() {
         provider: sendProvider,
         api_key: apiKey || '',
         endpoint: sendEndpoint,
-        model: document.getElementById('ap_model').value || null
+        model: sendModel
     };
 
     fetch('/autopilot/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
