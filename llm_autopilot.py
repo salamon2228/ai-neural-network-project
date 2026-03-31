@@ -291,6 +291,8 @@ class LLMProvider:
 
     def _trim_messages(self, messages: list, max_messages: int = 20) -> list:
         """Keep system message + last N messages to avoid token overflow."""
+        # Filter out any non-dict entries (safety check)
+        messages = [m for m in messages if isinstance(m, dict)]
         if len(messages) <= max_messages + 1:
             return messages
         system_msgs = [m for m in messages if m.get("role") == "system"]
@@ -298,11 +300,19 @@ class LLMProvider:
         # Keep last max_messages non-system messages
         trimmed = non_system[-max_messages:]
         # Also truncate long tool results in history
+        result = []
         for m in trimmed:
-            if m.get("role") == "tool" and len(m.get("content", "")) > 500:
+            content = m.get("content", "")
+            # Ensure content is a string for length check
+            if isinstance(content, list):
+                content = json.dumps(content, ensure_ascii=False)
+            elif not isinstance(content, str):
+                content = str(content) if content else ""
+            if m.get("role") == "tool" and len(content) > 500:
                 m = dict(m)
-                m["content"] = m["content"][:500] + "... (truncated)"
-        return system_msgs + trimmed
+                m["content"] = content[:500] + "... (truncated)"
+            result.append(m)
+        return system_msgs + result
 
     def chat(self, messages: list, tools: list = None) -> dict:
         """Send chat request. Returns {"content": str|None, "tool_calls": list|None, "stop_reason": str}"""
@@ -361,36 +371,93 @@ class LLMProvider:
         else:
             raise Exception("LLM API rate limit: too many retries")
 
-        choice = result["choices"][0]
-        msg = choice["message"]
+        # Debug: log raw response structure to help diagnose issues
+        try:
+            return self._parse_openai_response(result)
+        except Exception as parse_err:
+            # Log the raw response for debugging
+            raw_dump = json.dumps(result, ensure_ascii=False, default=str)[:1000]
+            raise Exception(f"Failed to parse LLM response: {parse_err}\nRaw response: {raw_dump}")
+
+    def _parse_openai_response(self, result: dict) -> dict:
+        """Parse OpenAI-compatible API response. Handles Gemini quirks."""
+        if not isinstance(result, dict):
+            raise Exception(f"Expected dict response, got {type(result).__name__}: {str(result)[:200]}")
+
+        choices = result.get("choices")
+        if not choices or not isinstance(choices, list):
+            raise Exception(f"No 'choices' in response. Keys: {list(result.keys())}")
+
+        choice = choices[0]
+        if not isinstance(choice, dict):
+            raise Exception(f"Choice is {type(choice).__name__}, not dict: {str(choice)[:200]}")
+
+        msg = choice.get("message")
+        if not isinstance(msg, dict):
+            # Some APIs put message content directly
+            msg = {"role": "assistant", "content": str(msg) if msg else ""}
+
+        # Normalize content: Gemini may return content as a list of parts
+        raw_content = msg.get("content")
+        if isinstance(raw_content, list):
+            text_parts = []
+            for part in raw_content:
+                if isinstance(part, dict):
+                    text_parts.append(part.get("text", str(part)))
+                elif isinstance(part, str):
+                    text_parts.append(part)
+                else:
+                    text_parts.append(str(part))
+            content_text = "".join(text_parts) or None
+        else:
+            content_text = raw_content
 
         tool_calls = None
-        if msg.get("tool_calls"):
+        raw_tool_calls = msg.get("tool_calls")
+        if raw_tool_calls and isinstance(raw_tool_calls, list):
             tool_calls = []
-            for tc in msg["tool_calls"]:
-                args = tc["function"].get("arguments", "{}")
+            for tc in raw_tool_calls:
+                if not isinstance(tc, dict):
+                    continue
+                func = tc.get("function")
+                if not isinstance(func, dict):
+                    continue
+                args = func.get("arguments", "{}")
                 if isinstance(args, str):
                     try:
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         args = {}
+                elif not isinstance(args, dict):
+                    args = {}
                 tool_calls.append({
-                    "id": tc["id"],
-                    "name": tc["function"]["name"],
+                    "id": tc.get("id", f"call_{id(tc)}"),
+                    "name": func.get("name", "unknown"),
                     "arguments": args
                 })
+            if not tool_calls:
+                tool_calls = None
 
         # Fallback: parse tool calls from content if model uses XML-like format
-        if not tool_calls and msg.get("content"):
-            parsed = self._parse_failed_tool_call(json.dumps({"error": {"failed_generation": msg["content"]}}))
+        if not tool_calls and content_text:
+            parsed = self._parse_failed_tool_call(json.dumps({"error": {"failed_generation": content_text}}))
             if parsed and parsed.get("tool_calls"):
                 return parsed
 
+        # Build a clean message for conversation history (content must be string or None)
+        clean_msg = {"role": "assistant", "content": content_text or ""}
+        # Preserve tool_calls in history if present (OpenAI format requires it)
+        if tool_calls:
+            clean_msg["tool_calls"] = [
+                {"id": tc["id"], "type": "function", "function": {"name": tc["name"], "arguments": json.dumps(tc["arguments"], ensure_ascii=False)}}
+                for tc in tool_calls
+            ]
+
         return {
-            "content": msg.get("content"),
+            "content": content_text,
             "tool_calls": tool_calls,
             "stop_reason": choice.get("finish_reason", "stop"),
-            "_raw_message": msg  # keep for conversation history
+            "_raw_message": clean_msg
         }
 
     def _parse_failed_tool_call(self, error_body: str) -> dict:
@@ -502,7 +569,20 @@ class LLMProvider:
         if self.provider == "anthropic":
             return {"role": "assistant", "content": response.get("_raw_content", [])}
         else:
-            return response.get("_raw_message", {"role": "assistant", "content": response.get("content", "")})
+            msg = response.get("_raw_message", {"role": "assistant", "content": response.get("content", "")})
+            # Ensure message is a dict with string content (not list) for OpenAI-compatible APIs
+            if not isinstance(msg, dict):
+                msg = {"role": "assistant", "content": str(msg) if msg else ""}
+            if isinstance(msg.get("content"), list):
+                parts = []
+                for p in msg["content"]:
+                    if isinstance(p, dict):
+                        parts.append(p.get("text", ""))
+                    elif isinstance(p, str):
+                        parts.append(p)
+                msg = dict(msg)
+                msg["content"] = "".join(parts)
+            return msg
 
     def build_tool_result_message(self, tool_call_id: str, result_str: str) -> dict:
         """Build tool result message for conversation history."""
@@ -935,7 +1015,7 @@ class LLMAutopilot:
                     self.state = "error"
                     return
                 except Exception as e:
-                    self._log("error", f"LLM API error: {str(e)}")
+                    self._log("error", f"LLM API error: {str(e)}\n{traceback.format_exc()}")
                     self.state = "error"
                     return
 

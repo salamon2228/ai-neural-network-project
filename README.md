@@ -36,7 +36,7 @@ A web-based system for creating, training, and analyzing neural language models 
 1. Click the badge above
 2. In Colab: **Runtime > Change runtime type > GPU (T4)**
 3. Run all cells
-4. Click the ngrok link to open the web interface
+4. Click the cloudflare tunnel link to open the web interface
 
 ### Option 2: Local installation
 
