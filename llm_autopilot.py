@@ -592,13 +592,17 @@ class LLMProvider:
                 msg["content"] = "".join(parts)
             return msg
 
-    def build_tool_result_message(self, tool_call_id: str, result_str: str) -> dict:
+    def build_tool_result_message(self, tool_call_id: str, result_str: str, tool_name: str = "") -> dict:
         """Build tool result message for conversation history."""
-        return {
+        msg = {
             "role": "tool",
             "tool_call_id": tool_call_id,
             "content": result_str
         }
+        # Gemini requires 'name' field in tool responses
+        if tool_name:
+            msg["name"] = tool_name
+        return msg
 
 
 # ============================
@@ -1069,7 +1073,7 @@ class LLMAutopilot:
                         self._log("tool_result", result_str[:1000])
 
                         # Add tool result to conversation
-                        tool_msg = self.provider.build_tool_result_message(tool_id, result_str)
+                        tool_msg = self.provider.build_tool_result_message(tool_id, result_str, tool_name)
                         self.messages.append(tool_msg)
 
                         # Handle special cases
