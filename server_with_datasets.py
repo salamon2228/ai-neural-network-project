@@ -1645,7 +1645,8 @@ async def start_autopilot(config: AutopilotConfig):
             checkpoints_dir=CHECKPOINTS_DIR,
             training_status=training_status,
             active_models=active_models,
-            start_training_fn=train_model_background
+            start_training_fn=train_model_background,
+            stop_training_fn=lambda: active_trainer.stop_training() if active_trainer else None
         )
         active_autopilot = LLMAutopilot(provider, executor)
         active_autopilot.start(config.goal, time_budget_minutes=config.time_budget or 0)

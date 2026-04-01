@@ -611,7 +611,7 @@ class ToolExecutor:
     def __init__(self, dataset_catalog, dataset_manager,
                  models_dir: Path, books_dir: Path, checkpoints_dir: Path,
                  training_status: dict, active_models: dict,
-                 start_training_fn: Callable):
+                 start_training_fn: Callable, stop_training_fn: Callable = None):
         self.catalog = dataset_catalog
         self.dm = dataset_manager
         self.models_dir = models_dir
@@ -620,6 +620,7 @@ class ToolExecutor:
         self.training_status = training_status
         self.active_models = active_models
         self.start_training_fn = start_training_fn
+        self.stop_training_fn = stop_training_fn
 
     def execute(self, tool_name: str, arguments: dict) -> dict:
         dispatch = {
@@ -629,6 +630,7 @@ class ToolExecutor:
             "create_model": self._create_model,
             "attach_dataset": self._attach_dataset,
             "start_training": self._start_training,
+            "stop_training": self._stop_training,
             "check_training_status": self._check_training_status,
             "generate_sample": self._generate_sample,
             "evaluate_model": self._evaluate_model,
@@ -760,6 +762,16 @@ class ToolExecutor:
                     "learning_rate": learning_rate}
         except Exception as e:
             return {"error": f"Failed to start training: {str(e)}"}
+
+    def _stop_training(self) -> dict:
+        """Stop training in progress."""
+        try:
+            if self.stop_training_fn:
+                self.stop_training_fn()
+                return {"status": "stopping", "message": "Training will stop after current batch"}
+            return {"error": "No stop function available"}
+        except Exception as e:
+            return {"error": f"Failed to stop training: {str(e)}"}
 
     def _check_training_status(self) -> dict:
         s = self.training_status
@@ -1089,9 +1101,18 @@ class LLMAutopilot:
         self._log("status", "Monitoring training progress...")
         check_interval = 30
         last_log_iter = 0
+        last_progress_iter = 0
+        stall_checks = 0
+        max_stall_checks = 10  # 10 * 30s = 5 minutes without progress → consider stuck
 
         while not self.stop_requested:
-            time.sleep(check_interval)
+            # Sleep in small chunks so stop_requested is checked quickly
+            for _ in range(check_interval):
+                if self.stop_requested:
+                    self._log("system", "Monitoring stopped by user.")
+                    return
+                time.sleep(1)
+
             status = self.executor.execute("check_training_status", {})
 
             if not status.get("is_training"):
@@ -1107,6 +1128,26 @@ class LLMAutopilot:
             max_iter = status.get("max_iterations", 0)
             loss = status.get("current_loss", 0)
             reward = status.get("current_reward", 0)
+
+            # Check for stalled training
+            if cur_iter == last_progress_iter:
+                stall_checks += 1
+                if stall_checks >= max_stall_checks:
+                    self._log("status", f"Training appears stuck at iteration {cur_iter}/{max_iter}. Stopping training and proceeding to evaluation.")
+                    # Force stop training
+                    try:
+                        self.executor.execute("stop_training", {})
+                    except Exception:
+                        pass
+                    time.sleep(3)
+                    self.messages.append({
+                        "role": "user",
+                        "content": f"Training was stopped because it appeared stuck at iteration {cur_iter}/{max_iter}. Final loss={loss}, reward={reward}. Please generate some samples to evaluate whatever the model learned, and report results to the user."
+                    })
+                    return
+            else:
+                stall_checks = 0
+                last_progress_iter = cur_iter
 
             # Log every ~10% progress or every 5 checks
             if cur_iter - last_log_iter > max(max_iter // 10, 100):
