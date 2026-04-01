@@ -363,11 +363,14 @@ class LLMProvider:
                     time.sleep(wait_time)
                     req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
                     continue
+                # 404 = wrong endpoint or model name
+                if e.code == 404:
+                    raise Exception(f"LLM API error 404: model or endpoint not found. URL: {self.endpoint}, model: {self.model}. Error: {error_body[:300]}")
                 # Groq/Llama: tool_use_failed with failed_generation
                 parsed = self._parse_failed_tool_call(error_body)
                 if parsed:
                     return parsed
-                raise Exception(f"LLM API error {e.code}: {error_body}")
+                raise Exception(f"LLM API error {e.code}: {error_body[:500]}")
         else:
             raise Exception("LLM API rate limit: too many retries")
 
@@ -464,7 +467,12 @@ class LLMProvider:
         """Parse Groq/Llama failed_generation format: <function=name>{json}</function>"""
         try:
             err = json.loads(error_body)
-            failed = err.get("error", {}).get("failed_generation", "")
+            if not isinstance(err, dict):
+                return None
+            error_obj = err.get("error", {})
+            if not isinstance(error_obj, dict):
+                return None
+            failed = error_obj.get("failed_generation", "")
             if not failed:
                 return None
             # Parse various Llama formats:
