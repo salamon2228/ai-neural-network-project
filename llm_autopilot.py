@@ -289,7 +289,7 @@ class LLMProvider:
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    def _trim_messages(self, messages: list, max_messages: int = 20) -> list:
+    def _trim_messages(self, messages: list, max_messages: int = 12) -> list:
         """Keep system message + last N messages to avoid token overflow."""
         # Filter out any non-dict entries (safety check)
         messages = [m for m in messages if isinstance(m, dict)]
@@ -299,18 +299,20 @@ class LLMProvider:
         non_system = [m for m in messages if m.get("role") != "system"]
         # Keep last max_messages non-system messages
         trimmed = non_system[-max_messages:]
-        # Also truncate long tool results in history
+        # Aggressively truncate tool results to save tokens
         result = []
         for m in trimmed:
             content = m.get("content", "")
-            # Ensure content is a string for length check
             if isinstance(content, list):
                 content = json.dumps(content, ensure_ascii=False)
             elif not isinstance(content, str):
                 content = str(content) if content else ""
-            if m.get("role") == "tool" and len(content) > 500:
+            if m.get("role") == "tool" and len(content) > 300:
                 m = dict(m)
-                m["content"] = content[:500] + "... (truncated)"
+                m["content"] = content[:300] + "...(truncated)"
+            elif m.get("role") == "assistant" and len(content) > 500:
+                m = dict(m)
+                m["content"] = content[:500] + "...(truncated)"
             result.append(m)
         return system_msgs + result
 
@@ -329,7 +331,7 @@ class LLMProvider:
         body = {
             "model": self.model,
             "messages": trimmed,
-            "max_tokens": 2048,
+            "max_tokens": 1024,
         }
         if tools:
             body["tools"] = AUTOPILOT_TOOLS_OPENAI
@@ -347,7 +349,7 @@ class LLMProvider:
         ctx = ssl.create_default_context()
 
         import re as _re
-        for _attempt in range(10):
+        for _attempt in range(15):
             try:
                 resp = urllib.request.urlopen(req, timeout=120, context=ctx)
                 result = json.loads(resp.read().decode("utf-8"))
@@ -357,10 +359,12 @@ class LLMProvider:
                 # Rate limit — wait and retry
                 if e.code == 429:
                     wait_match = _re.search(r'try again in (\d+\.?\d*)', error_body)
-                    wait_time = float(wait_match.group(1)) + 2 if wait_match else 20
-                    wait_time = max(wait_time, 10)  # at least 10 seconds
+                    wait_time = float(wait_match.group(1)) + 5 if wait_match else 30
+                    wait_time = max(wait_time, 15)  # at least 15 seconds
+                    wait_time = min(wait_time, 90)  # at most 90 seconds
                     import time
                     time.sleep(wait_time)
+                    # Rebuild request with potentially trimmed data
                     req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
                     continue
                 # 404 = wrong endpoint or model name
