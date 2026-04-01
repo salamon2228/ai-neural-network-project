@@ -271,6 +271,7 @@ class LLMProvider:
         self.provider = provider  # "anthropic" | "openai" | "openai_compatible"
         self.api_key = api_key
         self.model = model
+        self._log_fn = None  # Set by LLMAutopilot for status logging
 
         if provider == "anthropic":
             self.endpoint = "https://api.anthropic.com/v1/messages"
@@ -325,7 +326,7 @@ class LLMProvider:
 
     def _call_openai(self, messages: list, tools: list = None) -> dict:
         """Call OpenAI or OpenAI-compatible API."""
-        # Trim conversation history to avoid token overflow (keep system + last 20 messages)
+        # Trim conversation history to avoid token overflow
         trimmed = self._trim_messages(messages)
 
         body = {
@@ -345,27 +346,35 @@ class LLMProvider:
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
-        req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
         ctx = ssl.create_default_context()
 
         import re as _re
-        for _attempt in range(15):
+        max_retries = 10
+        for _attempt in range(max_retries):
+            req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
             try:
-                resp = urllib.request.urlopen(req, timeout=120, context=ctx)
+                resp = urllib.request.urlopen(req, timeout=60, context=ctx)
                 result = json.loads(resp.read().decode("utf-8"))
                 break
+            except urllib.error.URLError as e:
+                # Timeout or connection error
+                if _attempt < max_retries - 1:
+                    if self._log_fn:
+                        self._log_fn("status", f"API timeout, retrying ({_attempt+1}/{max_retries})...")
+                    time.sleep(5)
+                    continue
+                raise Exception(f"LLM API connection failed after {max_retries} attempts: {e}")
             except urllib.error.HTTPError as e:
                 error_body = e.read().decode("utf-8", errors="ignore")
                 # Rate limit — wait and retry
                 if e.code == 429:
                     wait_match = _re.search(r'try again in (\d+\.?\d*)', error_body)
                     wait_time = float(wait_match.group(1)) + 5 if wait_match else 30
-                    wait_time = max(wait_time, 15)  # at least 15 seconds
-                    wait_time = min(wait_time, 90)  # at most 90 seconds
-                    import time
+                    wait_time = max(wait_time, 15)
+                    wait_time = min(wait_time, 60)
+                    if self._log_fn:
+                        self._log_fn("status", f"Rate limit hit, waiting {int(wait_time)}s ({_attempt+1}/{max_retries})...")
                     time.sleep(wait_time)
-                    # Rebuild request with potentially trimmed data
-                    req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
                     continue
                 # 404 = wrong endpoint or model name
                 if e.code == 404:
@@ -969,6 +978,7 @@ class LLMAutopilot:
 
     def __init__(self, provider: LLMProvider, tool_executor: ToolExecutor):
         self.provider = provider
+        self.provider._log_fn = self._log  # Connect provider logging to autopilot log
         self.executor = tool_executor
         self.state = "idle"
         self.log = []
