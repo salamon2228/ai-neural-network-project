@@ -349,43 +349,58 @@ class LLMProvider:
         ctx = ssl.create_default_context()
 
         import re as _re
-        max_retries = 10
+        max_retries = 4
+        timeout_sec = 45
         for _attempt in range(max_retries):
             req = urllib.request.Request(self.endpoint, data=data, headers=headers, method="POST")
             try:
-                resp = urllib.request.urlopen(req, timeout=60, context=ctx)
+                if self._log_fn and _attempt == 0:
+                    self._log_fn("status", f"Calling LLM ({self.model})...")
+                resp = urllib.request.urlopen(req, timeout=timeout_sec, context=ctx)
                 result = json.loads(resp.read().decode("utf-8"))
                 break
-            except urllib.error.URLError as e:
-                # Timeout or connection error
-                if _attempt < max_retries - 1:
-                    if self._log_fn:
-                        self._log_fn("status", f"API timeout, retrying ({_attempt+1}/{max_retries})...")
-                    time.sleep(5)
-                    continue
-                raise Exception(f"LLM API connection failed after {max_retries} attempts: {e}")
             except urllib.error.HTTPError as e:
+                # HTTPError is a subclass of URLError — handle FIRST
                 error_body = e.read().decode("utf-8", errors="ignore")
-                # Rate limit — wait and retry
+                # Rate limit — wait and retry (capped so user doesn't wait forever)
                 if e.code == 429:
                     wait_match = _re.search(r'try again in (\d+\.?\d*)', error_body)
-                    wait_time = float(wait_match.group(1)) + 5 if wait_match else 30
-                    wait_time = max(wait_time, 15)
-                    wait_time = min(wait_time, 60)
-                    if self._log_fn:
-                        self._log_fn("status", f"Rate limit hit, waiting {int(wait_time)}s ({_attempt+1}/{max_retries})...")
-                    time.sleep(wait_time)
-                    continue
-                # 404 = wrong endpoint or model name
+                    wait_time = float(wait_match.group(1)) + 3 if wait_match else 20
+                    wait_time = max(wait_time, 10)
+                    wait_time = min(wait_time, 45)
+                    if _attempt < max_retries - 1:
+                        if self._log_fn:
+                            self._log_fn("status", f"Rate limit (429), waiting {int(wait_time)}s ({_attempt+1}/{max_retries})...")
+                        time.sleep(wait_time)
+                        continue
+                    raise Exception(f"LLM API rate limit: exceeded after {max_retries} retries. Try a different provider (Google AI Studio / Ollama Cloud).")
+                # 404 = wrong endpoint or model name — fail fast
                 if e.code == 404:
                     raise Exception(f"LLM API error 404: model or endpoint not found. URL: {self.endpoint}, model: {self.model}. Error: {error_body[:300]}")
+                # 401/403 = bad API key — fail fast
+                if e.code in (401, 403):
+                    raise Exception(f"LLM API auth error {e.code}: check your API key. Error: {error_body[:300]}")
                 # Groq/Llama: tool_use_failed with failed_generation
                 parsed = self._parse_failed_tool_call(error_body)
                 if parsed:
                     return parsed
+                # 5xx — retryable
+                if 500 <= e.code < 600 and _attempt < max_retries - 1:
+                    if self._log_fn:
+                        self._log_fn("status", f"Server error {e.code}, retrying ({_attempt+1}/{max_retries})...")
+                    time.sleep(3)
+                    continue
                 raise Exception(f"LLM API error {e.code}: {error_body[:500]}")
+            except urllib.error.URLError as e:
+                # Timeout or connection error
+                if _attempt < max_retries - 1:
+                    if self._log_fn:
+                        self._log_fn("status", f"API timeout/conn error, retrying ({_attempt+1}/{max_retries}): {str(e)[:80]}")
+                    time.sleep(3)
+                    continue
+                raise Exception(f"LLM API connection failed after {max_retries} attempts: {e}")
         else:
-            raise Exception("LLM API rate limit: too many retries")
+            raise Exception("LLM API: too many retries")
 
         # Debug: log raw response structure to help diagnose issues
         try:
@@ -1030,6 +1045,9 @@ class LLMAutopilot:
         ]
 
         max_turns = 50
+        consecutive_errors = 0
+        max_consecutive_errors = 3
+        empty_turns = 0
         try:
             for turn in range(max_turns):
                 if self.stop_requested:
@@ -1043,19 +1061,33 @@ class LLMAutopilot:
 
                 try:
                     response = self.provider.chat(self.messages, tools=True)
+                    consecutive_errors = 0  # reset on success
                 except urllib.error.HTTPError as e:
                     error_body = ""
                     try:
                         error_body = e.read().decode("utf-8", errors="replace")[:500]
                     except Exception:
                         pass
+                    consecutive_errors += 1
                     self._log("error", f"LLM API error {e.code}: {error_body}")
-                    self.state = "error"
-                    return
+                    if consecutive_errors >= max_consecutive_errors:
+                        self._log("system", f"Aborting after {consecutive_errors} consecutive LLM errors.")
+                        self.state = "error"
+                        return
+                    self._log("status", f"Recovering from error ({consecutive_errors}/{max_consecutive_errors}), retrying turn in 5s...")
+                    time.sleep(5)
+                    continue
                 except Exception as e:
-                    self._log("error", f"LLM API error: {str(e)}\n{traceback.format_exc()}")
-                    self.state = "error"
-                    return
+                    consecutive_errors += 1
+                    self._log("error", f"LLM API error: {str(e)}")
+                    if consecutive_errors >= max_consecutive_errors:
+                        self._log("error", f"Final traceback: {traceback.format_exc()}")
+                        self._log("system", f"Aborting after {consecutive_errors} consecutive LLM errors.")
+                        self.state = "error"
+                        return
+                    self._log("status", f"Recovering from error ({consecutive_errors}/{max_consecutive_errors}), retrying turn in 5s...")
+                    time.sleep(5)
+                    continue
 
                 # Log text response
                 if response.get("content"):
@@ -1101,11 +1133,28 @@ class LLMAutopilot:
                             self._monitor_training()
                             # After training ends, continue the loop so LLM can evaluate
                 else:
-                    # No tool calls — LLM is done talking
-                    if response.get("stop_reason") in ("stop", "end_turn"):
-                        self._log("system", "Autopilot finished.")
+                    # No tool calls. Did the LLM signal a real end?
+                    content_text = (response.get("content") or "").strip()
+                    stop_reason = response.get("stop_reason")
+                    # Real end only if LLM produced final text AND said stop/end_turn
+                    if stop_reason in ("stop", "end_turn") and content_text:
+                        # If the text looks like a final report — accept it
+                        self._log("system", "Autopilot finished (LLM signaled end without report_to_user).")
                         self.state = "completed"
                         return
+                    # Otherwise: LLM stalled with empty / non-final response — nudge it
+                    empty_turns += 1
+                    if empty_turns >= 3:
+                        self._log("system", "LLM stalled for 3 turns without tool calls. Stopping.")
+                        self.state = "error"
+                        return
+                    self._log("status", f"LLM produced no tool call (empty turn {empty_turns}/3). Nudging...")
+                    self.messages.append({
+                        "role": "user",
+                        "content": "You did not call any tool. Continue with the next step from your process: call the appropriate tool now (e.g. list_catalog, download_dataset, create_model, start_training, generate_sample, evaluate_model, or report_to_user with is_final=true if you are done)."
+                    })
+                    continue
+                empty_turns = 0  # reset after a turn that had tool calls
 
             self._log("system", "Reached maximum turns (50). Stopping.")
             self.state = "completed"
