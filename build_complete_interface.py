@@ -512,6 +512,42 @@ html = r'''<!DOCTYPE html>
                         <span style="color:#9ca3af;font-size:0.82em;" data-i18n="autopilot_time_hint">0 = без лимита. LLM подстроит кол-во итераций под время.</span>
                     </div>
                 </div>
+            </div>
+
+            <div class="info-card">
+                <h3 data-i18n="autopilot_quality_title">Целевое качество (требования к модели)</h3>
+                <p style="color:#9ca3af;font-size:0.85em;margin-bottom:10px;" data-i18n="autopilot_quality_desc">Автопилот обязан доказать что достиг этих целей — или честно сказать что не смог. Пустые поля = не ограничиваем.</p>
+                <div class="grid" style="grid-template-columns:1fr 1fr;">
+                    <div class="form-group">
+                        <label data-i18n="autopilot_target_score">Минимальный скор (0.0-1.0):</label>
+                        <input type="number" id="ap_target_score" min="0" max="1" step="0.05" placeholder="0.65" style="width:100%;">
+                        <span style="color:#9ca3af;font-size:0.78em;" data-i18n="autopilot_target_score_hint">Композитный балл качества. 0.3=плохо, 0.5=норм, 0.7=хорошо, 0.85=отлично.</span>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="autopilot_min_improvement">Минимум улучшения vs baseline (%):</label>
+                        <input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20" style="width:100%;">
+                        <span style="color:#9ca3af;font-size:0.78em;" data-i18n="autopilot_min_improvement_hint">На сколько % скор должен вырасти после обучения.</span>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label data-i18n="autopilot_must_include">Модель ДОЛЖНА выдавать:</label>
+                    <textarea id="ap_must_include" rows="2" style="width:100%;resize:vertical;"
+                        data-i18n-placeholder="autopilot_must_include_placeholder"
+                        placeholder="связный русский текст, правильная грамматика, разные слова"></textarea>
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label data-i18n="autopilot_must_avoid">Модель НЕ ДОЛЖНА выдавать:</label>
+                    <textarea id="ap_must_avoid" rows="2" style="width:100%;resize:vertical;"
+                        data-i18n-placeholder="autopilot_must_avoid_placeholder"
+                        placeholder="&lt;UNK&gt;, мусор, бессмыслицу, повторение одного слова, английские слова"></textarea>
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label data-i18n="autopilot_custom_prompts">Свои промпты для бенчмарка (опционально, по одному на строку):</label>
+                    <textarea id="ap_custom_prompts" rows="4" style="width:100%;resize:vertical;font-family:monospace;"
+                        data-i18n-placeholder="autopilot_custom_prompts_placeholder"
+                        placeholder="В тот день&#10;Она посмотрела&#10;Когда наступила&#10;Он шёл"></textarea>
+                    <span style="color:#9ca3af;font-size:0.78em;" data-i18n="autopilot_custom_prompts_hint">Если пусто — LLM сам составит промпты под вашу цель.</span>
+                </div>
                 <div style="display:flex;gap:10px;margin-top:10px;">
                     <button class="btn btn-primary" onclick="startAutopilot()" id="ap_start_btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" data-i18n="autopilot_start">Запустить автопилот</button>
                     <button class="btn btn-danger" onclick="stopAutopilot()" id="ap_stop_btn" style="display:none;" data-i18n="autopilot_stop">Остановить</button>
@@ -1192,6 +1228,19 @@ var TRANSLATIONS = {
         autopilot_state_stopped: 'Остановлен',
         autopilot_time_budget: 'Лимит времени (минут):',
         autopilot_time_hint: '0 = без лимита. LLM подстроит кол-во итераций под время.',
+        autopilot_quality_title: 'Целевое качество (требования к модели)',
+        autopilot_quality_desc: 'Автопилот обязан доказать что достиг этих целей — или честно сказать что не смог. Пустые поля = не ограничиваем.',
+        autopilot_target_score: 'Минимальный скор (0.0-1.0):',
+        autopilot_target_score_hint: 'Композитный балл качества. 0.3=плохо, 0.5=норм, 0.7=хорошо, 0.85=отлично.',
+        autopilot_min_improvement: 'Минимум улучшения vs baseline (%):',
+        autopilot_min_improvement_hint: 'На сколько % скор должен вырасти после обучения.',
+        autopilot_must_include: 'Модель ДОЛЖНА выдавать:',
+        autopilot_must_include_placeholder: 'связный русский текст, правильная грамматика, разные слова',
+        autopilot_must_avoid: 'Модель НЕ ДОЛЖНА выдавать:',
+        autopilot_must_avoid_placeholder: '<UNK>, мусор, бессмыслицу, повторение одного слова, английские слова',
+        autopilot_custom_prompts: 'Свои промпты для бенчмарка (опционально, по одному на строку):',
+        autopilot_custom_prompts_placeholder: 'В тот день\nОна посмотрела\nКогда наступила\nОн шёл',
+        autopilot_custom_prompts_hint: 'Если пусто — LLM сам составит промпты под вашу цель.',
         autopilot_opt_google: 'Google AI Studio (Бесплатно)',
         autopilot_opt_groq: 'Groq (Бесплатно)',
         autopilot_opt_ollama_cloud: 'Ollama Cloud (GPT-OSS, GLM, Qwen)',
@@ -1356,6 +1405,19 @@ var TRANSLATIONS = {
         autopilot_state_stopped: 'Stopped',
         autopilot_time_budget: 'Time limit (minutes):',
         autopilot_time_hint: '0 = no limit. LLM will adjust iterations to fit the time.',
+        autopilot_quality_title: 'Quality targets (model requirements)',
+        autopilot_quality_desc: 'The autopilot must PROVE it hit these targets — or honestly report that it did not. Empty fields = no constraint.',
+        autopilot_target_score: 'Minimum score (0.0-1.0):',
+        autopilot_target_score_hint: 'Composite quality score. 0.3=bad, 0.5=ok, 0.7=good, 0.85=excellent.',
+        autopilot_min_improvement: 'Minimum improvement vs baseline (%):',
+        autopilot_min_improvement_hint: 'How much the score must grow after training.',
+        autopilot_must_include: 'Model MUST produce:',
+        autopilot_must_include_placeholder: 'coherent English prose, correct grammar, varied vocabulary',
+        autopilot_must_avoid: 'Model MUST NOT produce:',
+        autopilot_must_avoid_placeholder: '<UNK> tokens, gibberish, single-word loops, non-English words',
+        autopilot_custom_prompts: 'Custom benchmark prompts (optional, one per line):',
+        autopilot_custom_prompts_placeholder: 'That morning\nShe walked into\nOnce upon a\nHe thought',
+        autopilot_custom_prompts_hint: 'If empty — the LLM will invent prompts matching your goal.',
         autopilot_opt_google: 'Google AI Studio (Free)',
         autopilot_opt_groq: 'Groq (Free)',
         autopilot_opt_ollama_cloud: 'Ollama Cloud (GPT-OSS, GLM, Qwen)',
@@ -1445,13 +1507,28 @@ function startAutopilot() {
 
     var timeBudget = parseInt(document.getElementById('ap_time_budget').value) || 0;
 
+    // Quality spec — optional user-defined targets
+    var targetScoreRaw = document.getElementById('ap_target_score').value;
+    var minImprovRaw = document.getElementById('ap_min_improvement').value;
+    var mustInclude = (document.getElementById('ap_must_include').value || '').trim();
+    var mustAvoid = (document.getElementById('ap_must_avoid').value || '').trim();
+    var customPromptsRaw = (document.getElementById('ap_custom_prompts').value || '').trim();
+    var customPrompts = customPromptsRaw
+        ? customPromptsRaw.split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s.length > 0; })
+        : null;
+
     var body = {
         goal: goal,
         provider: sendProvider,
         api_key: apiKey || '',
         endpoint: sendEndpoint,
         model: sendModel,
-        time_budget: timeBudget
+        time_budget: timeBudget,
+        target_score: targetScoreRaw !== '' ? parseFloat(targetScoreRaw) : null,
+        min_improvement_pct: minImprovRaw !== '' ? parseFloat(minImprovRaw) : null,
+        must_include: mustInclude || null,
+        must_avoid: mustAvoid || null,
+        custom_prompts: customPrompts
     };
 
     fetch('/autopilot/start', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})

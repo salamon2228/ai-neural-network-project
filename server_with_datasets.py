@@ -148,6 +148,12 @@ class AutopilotConfig(BaseModel):
     endpoint: Optional[str] = None
     model: Optional[str] = None
     time_budget: Optional[int] = 0
+    # Quality spec — hard targets the autopilot must prove or honestly fail
+    target_score: Optional[float] = None          # min acceptable overall_score [0..1]
+    min_improvement_pct: Optional[float] = None   # min improvement vs baseline in %
+    must_include: Optional[str] = None            # free-form: what output MUST have
+    must_avoid: Optional[str] = None              # free-form: what output MUST NOT have
+    custom_prompts: Optional[List[str]] = None    # user-supplied benchmark prompts
 
 
 # === UI ===
@@ -1656,7 +1662,20 @@ async def start_autopilot(config: AutopilotConfig):
             history=model_history
         )
         active_autopilot = LLMAutopilot(provider, executor)
-        active_autopilot.start(config.goal, time_budget_minutes=config.time_budget or 0)
+        quality_spec = {
+            "target_score": config.target_score,
+            "min_improvement_pct": config.min_improvement_pct,
+            "must_include": (config.must_include or "").strip() or None,
+            "must_avoid": (config.must_avoid or "").strip() or None,
+            "custom_prompts": [p.strip() for p in (config.custom_prompts or []) if p.strip()] or None
+        }
+        # Drop keys that are None so the prompt stays clean
+        quality_spec = {k: v for k, v in quality_spec.items() if v is not None}
+        active_autopilot.start(
+            config.goal,
+            time_budget_minutes=config.time_budget or 0,
+            quality_spec=quality_spec
+        )
         return {"status": "started"}
     except Exception as e:
         raise HTTPException(500, f"Failed to start autopilot: {str(e)}")

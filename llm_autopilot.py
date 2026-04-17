@@ -28,6 +28,7 @@ SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small tran
 5. You MUST design a benchmark BEFORE training and MUST re-run it AFTER training — and PROVE improvement via compare_runs.
 6. Check get_model_history BEFORE making decisions — if this model has been trained before, learn from those runs.
 7. Do NOT rely only on list_catalog templates. If the goal is niche, use search_huggingface, inspect_dataset, and combine multiple sources.
+8. If the user provided QUALITY TARGETS (target_score, min_improvement_pct, must_include, must_avoid) — these are NOT suggestions. You MUST call check_quality_targets after the post-training benchmark and MUST NOT report is_final=true while any numeric target fails. Honest failure is better than fake success.
 
 ## Your Process (follow EXACTLY):
 
@@ -58,13 +59,28 @@ SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small tran
 14. Call compare_runs(model_name). This returns overall_delta, per-metric deltas, and an `improved` flag.
 15. Generate 2-3 ad-hoc samples with generate_sample for qualitative spot-check (different prompts/temperatures).
 
-### Phase 6: Decide — ship or iterate
-16. If compare_runs shows `improved: true` AND the verdict is OK/GOOD → proceed to final report.
-17. If no improvement OR verdict is still BAD/TERRIBLE:
-    - Diagnose: loss too high (need more iterations)? vocab too small (<UNK> heavy)? wrong datasets (off-topic)? overfitting (loss very low but samples repetitive)?
+### Phase 6: Check user's quality targets (MANDATORY if targets specified)
+16. Call check_quality_targets(model_name). This returns per-criterion pass/fail for:
+    - target_score (minimum overall_score the user accepts)
+    - min_improvement_pct (minimum improvement vs baseline)
+    - must_include / must_avoid (qualitative — YOU judge from samples)
+17. If `all_numeric_checks_passed: false` → you CANNOT mark is_final=true. You MUST iterate.
+18. For qualitative checks (must_include / must_avoid), examine the benchmark samples you already have. If the model outputs clearly violate must_avoid (e.g. pure gibberish, wrong language, excessive <UNK>) — treat it as failure and iterate.
+
+### Phase 7: Decide — ship or iterate
+19. Ship (report_to_user with is_final=true) ONLY IF:
+    - compare_runs shows `improved: true` AND
+    - check_quality_targets shows all numeric checks passed AND
+    - the samples qualitatively satisfy must_include / must_avoid
+20. Otherwise iterate (up to 2 retries total):
+    - Diagnose root cause: loss too high (need more iterations)? vocab too small (<UNK> heavy)? wrong datasets (off-topic)? repetition (need more diverse data)?
     - Fix ONE thing at a time: continue training with more iterations, OR re-attach better datasets, OR adjust params and recreate.
-    - Re-run benchmark, call compare_runs again. Up to 2 retry iterations total.
-18. report_to_user(is_final=true) with: final benchmark scores, delta vs baseline (in %), sample outputs, and an honest verdict.
+    - Re-run benchmark, compare_runs, check_quality_targets.
+21. If after 2 retries targets are STILL unmet → call report_to_user(is_final=true) with HONEST failure:
+    - State which targets were not met and by how much
+    - Show sample outputs
+    - Explain what you tried and what you would recommend next (e.g. "need more data" / "need GPU for longer training" / "target score unrealistic for this dataset size")
+    - NEVER pretend success when check_quality_targets failed.
 
 ## Model Parameter Guide
 | Goal | layers | d_model | d_ff | vocab | iterations | lr |
@@ -315,6 +331,20 @@ AUTOPILOT_TOOLS_OPENAI = [
                     "filename": {"type": "string", "description": "Dataset filename (e.g. 'ruslit_war_and_peace.txt')"}
                 },
                 "required": ["filename"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_quality_targets",
+            "description": "Check whether the latest benchmarked state of a model MEETS the user's quality targets (target_score, min_improvement_pct, must_include, must_avoid). Returns per-criterion pass/fail. You MUST call this after the post-training benchmark and BEFORE reporting final results. If any numeric criterion fails, you MUST iterate (more training, better data, or honestly report failure). NEVER say the job is done if this returns failures.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "string", "description": "Name of the model to check"}
+                },
+                "required": ["model_name"]
             }
         }
     },
@@ -750,6 +780,8 @@ class ToolExecutor:
         self.history = history
         # Track the latest run_id per model so benchmarks attach to the right entry
         self._last_run_id = {}
+        # User-defined quality targets (set by LLMAutopilot after start)
+        self.quality_spec = {}
 
     def execute(self, tool_name: str, arguments: dict) -> dict:
         dispatch = {
@@ -768,6 +800,7 @@ class ToolExecutor:
             "get_model_history": self._get_model_history,
             "compare_runs": self._compare_runs,
             "inspect_dataset": self._inspect_dataset,
+            "check_quality_targets": self._check_quality_targets,
             "report_to_user": self._report_to_user,
         }
         handler = dispatch.get(tool_name)
@@ -1136,24 +1169,147 @@ class ToolExecutor:
 
     def _design_benchmark(self, model_name: str, goal: str, prompts: list,
                           language: str = "en", rubric: str = "") -> dict:
-        """Save an LLM-designed benchmark definition tied to this model."""
+        """Save an LLM-designed benchmark definition tied to this model.
+        If user provided custom_prompts in quality_spec, those OVERRIDE the LLM's
+        suggestions — the user's prompts are the source of truth."""
         if self.history is None:
             return {"error": "History storage not available"}
+
+        user_prompts = self.quality_spec.get("custom_prompts")
+        overridden = False
+        if user_prompts:
+            prompts = [str(p).strip() for p in user_prompts if str(p).strip()][:10]
+            overridden = True
+
         if not prompts or not isinstance(prompts, list) or len(prompts) < 2:
             return {"error": "Need at least 2 prompts for a meaningful benchmark"}
         prompts = [str(p).strip() for p in prompts if str(p).strip()][:10]
+
+        # Enrich rubric with user's must_include / must_avoid
+        rubric_parts = [rubric] if rubric else []
+        mi = self.quality_spec.get("must_include")
+        ma = self.quality_spec.get("must_avoid")
+        if mi:
+            rubric_parts.append(f"MUST INCLUDE: {mi}")
+        if ma:
+            rubric_parts.append(f"MUST AVOID: {ma}")
+        full_rubric = " | ".join(rubric_parts)
+
         try:
-            bid = self.history.save_benchmark(model_name, goal, prompts, language, rubric)
+            bid = self.history.save_benchmark(model_name, goal, prompts, language, full_rubric)
             return {
                 "status": "success",
                 "benchmark_id": bid,
                 "model_name": model_name,
                 "prompt_count": len(prompts),
+                "prompts_used": prompts,
+                "prompts_overridden_by_user": overridden,
                 "language": language,
-                "message": f"Benchmark '{bid}' saved. Use run_benchmark to establish a baseline before training."
+                "rubric_saved": full_rubric,
+                "message": (
+                    f"Benchmark '{bid}' saved with {len(prompts)} prompts "
+                    + ("(user-supplied)." if overridden else "(LLM-designed).")
+                    + " Now call run_benchmark(label='baseline') for the pre-training measurement."
+                )
             }
         except Exception as e:
             return {"error": f"Failed to save benchmark: {str(e)}"}
+
+    def _check_quality_targets(self, model_name: str) -> dict:
+        """Evaluate the latest benchmarked state of a model against user-supplied
+        quality targets from quality_spec. Returns per-criterion pass/fail results."""
+        if self.history is None:
+            return {"error": "History storage not available"}
+
+        spec = self.quality_spec or {}
+        history_snap = self.history.get_history(model_name)
+        if not history_snap.get("exists"):
+            return {"error": f"No history for '{model_name}'. Run a benchmark first."}
+
+        # Find the most recently benchmarked run
+        latest = None
+        for r in reversed(history_snap.get("runs", [])):
+            bench = r.get("benchmark", {})
+            if bench.get("overall_score") is not None:
+                latest = r
+                break
+        if latest is None:
+            return {"error": "No benchmarked runs yet. Call run_benchmark first."}
+
+        current_score = latest["benchmark"]["overall_score"]
+        current_verdict = latest["benchmark"].get("verdict")
+
+        checks = []
+        numeric_passed = True
+
+        target = spec.get("target_score")
+        if target is not None:
+            passed = current_score >= target
+            checks.append({
+                "criterion": "target_overall_score",
+                "target": target,
+                "actual": current_score,
+                "passed": passed,
+                "detail": f"Need ≥ {target}, got {current_score:.3f}"
+            })
+            if not passed:
+                numeric_passed = False
+
+        min_improvement = spec.get("min_improvement_pct")
+        if min_improvement is not None:
+            cmp_result = self.history.compare_runs(model_name)
+            if "error" in cmp_result:
+                checks.append({
+                    "criterion": "min_improvement_pct",
+                    "target": min_improvement,
+                    "actual": None,
+                    "passed": False,
+                    "detail": f"Cannot compare yet: {cmp_result['error']}"
+                })
+                numeric_passed = False
+            else:
+                actual_pct = cmp_result.get("improvement_pct", 0)
+                passed = actual_pct >= min_improvement
+                checks.append({
+                    "criterion": "min_improvement_pct",
+                    "target": f"{min_improvement}%",
+                    "actual": f"{actual_pct}%",
+                    "passed": passed,
+                    "detail": f"Need ≥ {min_improvement}% vs baseline, got {actual_pct}%"
+                })
+                if not passed:
+                    numeric_passed = False
+
+        # Qualitative checks — surface samples to LLM for judgment
+        if spec.get("must_include"):
+            checks.append({
+                "criterion": "must_include",
+                "target": spec["must_include"],
+                "passed": None,
+                "detail": "Qualitative — YOU must judge from the benchmark samples whether this holds."
+            })
+        if spec.get("must_avoid"):
+            checks.append({
+                "criterion": "must_avoid",
+                "target": spec["must_avoid"],
+                "passed": None,
+                "detail": "Qualitative — YOU must judge from the benchmark samples whether model violates this."
+            })
+
+        return {
+            "model_name": model_name,
+            "current_overall_score": current_score,
+            "current_verdict": current_verdict,
+            "run_id_checked": latest["run_id"],
+            "checks": checks,
+            "all_numeric_checks_passed": numeric_passed,
+            "has_qualitative_checks": any(c["passed"] is None for c in checks),
+            "verdict_summary": (
+                "ALL numeric targets met — safe to report final results "
+                "(if qualitative checks also hold)." if numeric_passed
+                else "FAILURE — at least one numeric target not met. Iterate (more training / better data) or report honest failure to user."
+            )
+        }
 
     def _run_benchmark(self, model_name: str, label: str = "") -> dict:
         """Run the most recent benchmark for a model and record the result."""
@@ -1317,13 +1473,16 @@ class LLMAutopilot:
         self.stop_requested = False
         self._thread = None
 
-    def start(self, user_goal: str, time_budget_minutes: int = 0):
+    def start(self, user_goal: str, time_budget_minutes: int = 0, quality_spec: dict = None):
         """Start the autopilot in a background thread."""
         self.state = "planning"
         self.stop_requested = False
         self.log = []
         self.messages = []
         self.time_budget = time_budget_minutes
+        self.quality_spec = quality_spec or {}
+        # Share spec with executor so design_benchmark / check_quality_targets can read it
+        self.executor.quality_spec = self.quality_spec
         self._thread = threading.Thread(target=self._run, args=(user_goal,), daemon=True)
         self._thread.start()
 
@@ -1355,9 +1514,37 @@ class LLMAutopilot:
 
         system_prompt = SYSTEM_PROMPT.replace("{time_budget_info}", time_info)
 
+        # Build quality spec block for the first user message
+        spec = self.quality_spec or {}
+        spec_lines = []
+        if spec.get("target_score") is not None:
+            spec_lines.append(f"- TARGET overall_score: ≥ {spec['target_score']} (composite score in [0..1]; higher=better)")
+        if spec.get("min_improvement_pct") is not None:
+            spec_lines.append(f"- MINIMUM improvement vs baseline: ≥ {spec['min_improvement_pct']}%")
+        if spec.get("must_include"):
+            spec_lines.append(f"- Output MUST include/exhibit: {spec['must_include']}")
+        if spec.get("must_avoid"):
+            spec_lines.append(f"- Output MUST NOT produce: {spec['must_avoid']}")
+        if spec.get("custom_prompts"):
+            cp = spec["custom_prompts"]
+            spec_lines.append(f"- USER-SUPPLIED benchmark prompts ({len(cp)}): {cp}")
+            spec_lines.append("  IMPORTANT: when you call design_benchmark, these prompts will be used AUTOMATICALLY — do not invent your own.")
+
+        user_message_parts = [f"GOAL: {user_goal}"]
+        if spec_lines:
+            user_message_parts.append("\nQUALITY TARGETS (hard requirements from the user):")
+            user_message_parts.extend(spec_lines)
+            user_message_parts.append(
+                "\nYou MUST call check_quality_targets AFTER the post-training benchmark and BEFORE "
+                "reporting final results. If any numeric target fails, iterate or honestly report failure. "
+                "Do NOT mark is_final=true while numeric targets remain unmet."
+            )
+        full_user_msg = "\n".join(user_message_parts)
+        self._log("system", f"Quality targets: {spec if spec else 'none specified'}")
+
         self.messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_goal}
+            {"role": "user", "content": full_user_msg}
         ]
 
         max_turns = 50
