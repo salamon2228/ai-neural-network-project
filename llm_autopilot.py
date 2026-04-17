@@ -1164,27 +1164,35 @@ class LLMAutopilot:
             self.state = "error"
 
     def _monitor_training(self):
-        """Poll training status every 30 seconds until training completes."""
+        """Poll training status with frequent heartbeat + absolute wall-clock cap."""
         self._log("status", "Monitoring training progress...")
-        check_interval = 30
-        last_log_iter = 0
+        check_interval = 15  # poll every 15s (was 30 — user thought it was frozen)
+        last_heartbeat = time.time()
         last_progress_iter = 0
-        stall_checks = 0
-        max_stall_checks = 10  # 10 * 30s = 5 minutes without progress → consider stuck
+        last_progress_time = time.time()
+        last_logged_pct = -1
+        started_at = time.time()
+
+        # Wall-clock ceiling: take user's time_budget if set, else 2h
+        budget_min = getattr(self, "time_budget", 0) or 0
+        wall_clock_limit = (budget_min * 60 + 300) if budget_min > 0 else 7200  # +5min grace
+
+        # Stall detection: no iteration change for N seconds → force-stop
+        stall_timeout = 180  # 3 minutes of flatline
 
         while not self.stop_requested:
-            # Sleep in small chunks so stop_requested is checked quickly
+            # Sleep in 1-second chunks so stop is responsive
             for _ in range(check_interval):
                 if self.stop_requested:
                     self._log("system", "Monitoring stopped by user.")
                     return
                 time.sleep(1)
 
+            now = time.time()
             status = self.executor.execute("check_training_status", {})
 
             if not status.get("is_training"):
                 self._log("status", "Training completed!")
-                # Add training completion to conversation so LLM knows
                 self.messages.append({
                     "role": "user",
                     "content": f"Training has completed. Final status: loss={status.get('current_loss')}, reward={status.get('current_reward')}, iterations={status.get('current_iteration')}. Please generate some samples to evaluate the model quality and then report the final results to the user."
@@ -1196,12 +1204,36 @@ class LLMAutopilot:
             loss = status.get("current_loss", 0)
             reward = status.get("current_reward", 0)
 
-            # Check for stalled training
-            if cur_iter == last_progress_iter:
-                stall_checks += 1
-                if stall_checks >= max_stall_checks:
-                    self._log("status", f"Training appears stuck at iteration {cur_iter}/{max_iter}. Stopping training and proceeding to evaluation.")
-                    # Force stop training
+            elapsed = now - started_at
+
+            # Wall-clock watchdog — absolute cap on training time
+            if elapsed > wall_clock_limit:
+                self._log("status", f"Training exceeded wall-clock limit ({int(elapsed/60)} min). Force-stopping.")
+                try:
+                    self.executor.execute("stop_training", {})
+                except Exception:
+                    pass
+                time.sleep(3)
+                self.messages.append({
+                    "role": "user",
+                    "content": f"Training was force-stopped after {int(elapsed/60)} minutes (wall-clock limit). Got to iteration {cur_iter}/{max_iter}, loss={loss}, reward={reward}. Please generate samples to evaluate whatever the model learned, and report results."
+                })
+                return
+
+            # Progress / stall tracking
+            if cur_iter > last_progress_iter:
+                # Real progress — update trackers
+                iter_delta = cur_iter - last_progress_iter
+                time_delta = now - last_progress_time
+                iter_per_sec = iter_delta / max(time_delta, 0.1)
+                last_progress_iter = cur_iter
+                last_progress_time = now
+            else:
+                # No progress since last check
+                iter_per_sec = 0
+                stall_duration = now - last_progress_time
+                if stall_duration > stall_timeout:
+                    self._log("status", f"No progress for {int(stall_duration)}s at iteration {cur_iter}/{max_iter}. Force-stopping and moving to evaluation.")
                     try:
                         self.executor.execute("stop_training", {})
                     except Exception:
@@ -1209,17 +1241,30 @@ class LLMAutopilot:
                     time.sleep(3)
                     self.messages.append({
                         "role": "user",
-                        "content": f"Training was stopped because it appeared stuck at iteration {cur_iter}/{max_iter}. Final loss={loss}, reward={reward}. Please generate some samples to evaluate whatever the model learned, and report results to the user."
+                        "content": f"Training was stopped because it stalled at iteration {cur_iter}/{max_iter} for {int(stall_duration)}s. Final loss={loss}, reward={reward}. Please generate samples to evaluate whatever was learned, and report results."
                     })
                     return
-            else:
-                stall_checks = 0
-                last_progress_iter = cur_iter
 
-            # Log every ~10% progress or every 5 checks
-            if cur_iter - last_log_iter > max(max_iter // 10, 100):
-                pct = round(cur_iter / max_iter * 100, 1) if max_iter > 0 else 0
-                self._log("status", f"Training: {cur_iter}/{max_iter} ({pct}%) | Loss: {loss:.4f} | Reward: {reward:.4f}")
-                last_log_iter = cur_iter
+            pct = (cur_iter / max_iter * 100) if max_iter > 0 else 0
+
+            # Log on ANY of these conditions:
+            #   - crossed a 2% progress boundary
+            #   - 60s elapsed since last heartbeat
+            pct_bucket = int(pct // 2) * 2
+            should_log = (pct_bucket > last_logged_pct) or (now - last_heartbeat >= 60)
+
+            if should_log:
+                # ETA calculation
+                if iter_per_sec > 0 and max_iter > cur_iter:
+                    eta_sec = (max_iter - cur_iter) / iter_per_sec
+                    eta_str = f" | ETA: {int(eta_sec/60)}m{int(eta_sec%60)}s"
+                else:
+                    eta_str = ""
+                speed_str = f" | {iter_per_sec:.1f} it/s" if iter_per_sec > 0 else " | (no progress)"
+                self._log("status",
+                          f"Training: {cur_iter}/{max_iter} ({pct:.1f}%) | Loss: {loss:.4f} | Reward: {reward:.4f}{speed_str}{eta_str}")
+                last_heartbeat = now
+                if pct_bucket > last_logged_pct:
+                    last_logged_pct = pct_bucket
 
         self._log("system", "Monitoring stopped by user.")
