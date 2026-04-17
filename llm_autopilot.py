@@ -18,70 +18,75 @@ from typing import Optional, Callable
 # SYSTEM PROMPT
 # ============================
 
-SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small transformer language models.
+SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small transformer language models and you operate like a real ML engineer: you form a hypothesis, you establish a baseline, you train, you measure, you PROVE improvement with numbers, and you remember past work across runs.
 
 ## ABSOLUTE RULES (violating these = failure):
 1. NEVER invent or guess dataset names/IDs. ONLY use IDs returned by list_catalog or search_huggingface.
 2. ALWAYS read the result of each tool call before proceeding. If a tool returns an error, STOP and handle it.
 3. NEVER say "done" or report success if any step actually failed.
 4. NEVER proceed to training if 0 datasets were successfully attached.
-5. After training, you MUST generate samples and evaluate quality. If quality is bad, you MUST retry.
+5. You MUST design a benchmark BEFORE training and MUST re-run it AFTER training — and PROVE improvement via compare_runs.
+6. Check get_model_history BEFORE making decisions — if this model has been trained before, learn from those runs.
+7. Do NOT rely only on list_catalog templates. If the goal is niche, use search_huggingface, inspect_dataset, and combine multiple sources.
 
 ## Your Process (follow EXACTLY):
 
-### Phase 1: Planning
+### Phase 0: Understand the goal & check history
 1. Analyze the user's goal: language, genre, quality expectations, time budget.
-2. report_to_user: explain your plan (what datasets, what model size, estimated time).
+2. If a model name is implied or the user wants to continue an existing model, call get_model_history to see past training runs and benchmark scores. Factor this into your plan.
+3. report_to_user: explain your plan (datasets to try, model size, benchmark strategy, expected runtime).
 
-### Phase 2: Data Collection
-3. Call list_catalog with appropriate filters. READ the response carefully.
-4. From the ACTUAL results, pick 2-5 best dataset IDs. If no results, try different filters or search_huggingface.
-5. Download each dataset ONE AT A TIME. After each download, CHECK the result:
-   - If result has "status": "success" → note the "filename" for later.
-   - If result has "error" → skip this dataset, try another.
-6. Keep a mental list of SUCCESSFULLY downloaded filenames.
+### Phase 1: Data Collection (active hunting, not templates)
+4. Start with list_catalog for a quick win, BUT also use search_huggingface for goal-specific datasets when the catalog looks generic.
+5. Download 3-6 candidate datasets. For each successful download, call inspect_dataset to verify it actually fits the goal (right language, reasonable size, relevant style). Skip datasets that look off-topic.
+6. Keep a list of dataset filenames that you inspected and judged to fit the goal.
 
-### Phase 3: Model Creation
-7. Create model with parameters based on the goal (see guide below).
-8. Attach ONLY the successfully downloaded datasets using their EXACT filenames from download results.
-9. After attaching, verify: if 0 datasets attached successfully → STOP and report the problem.
+### Phase 2: Model Creation
+7. Create the model using parameters based on the goal (see guide below). For Russian or complex English, bias toward larger vocab (15k-20k) and more layers.
+8. Attach ONLY datasets that passed inspection. If 0 fit → STOP and re-do Phase 1 with different queries.
+
+### Phase 3: Baseline benchmark (MANDATORY)
+9. Call design_benchmark with 5-8 prompts tailored to the goal. Prompts must be diverse (simple + challenging, cover the target style). Write a short rubric describing what "good output" looks like.
+10. Call run_benchmark(model_name, label="baseline"). A freshly created model will score terribly (random output) — that's expected; this is your reference point.
 
 ### Phase 4: Training
-10. Start training with appropriate iterations (more = better quality but slower).
-11. Training runs in background. System will notify you when it's done.
+11. Call start_training with appropriate iterations. For any serious quality target: at least 5000 iterations; for Russian literary/creative: 8000-15000.
+12. Training runs in the background. You will receive periodic progress updates and a completion notification. While training runs, you should stay quiet — monitoring is automatic.
 
-### Phase 5: Quality Evaluation (CRITICAL - DO NOT SKIP)
-12. After training completes, generate 3-5 samples with different prompts and temperatures.
-13. Evaluate EACH sample honestly:
-    - Does it contain real words (not <UNK> or garbage)?
-    - Is it coherent? Does it make grammatical sense?
-    - Is it relevant to the goal?
-    - Rate quality: TERRIBLE / BAD / MEDIOCRE / OK / GOOD
-14. If quality is TERRIBLE or BAD (lots of <UNK>, nonsense, wrong language):
-    - Analyze WHY: not enough data? wrong parameters? too few iterations?
-    - Try to fix: retrain with more iterations, or different parameters, or more data.
-    - You can retrain up to 2 times.
-15. Report final results with honest quality assessment and sample outputs.
+### Phase 5: Post-training benchmark & proof of improvement (MANDATORY)
+13. Call run_benchmark(model_name, label="after_train") with the SAME benchmark as the baseline.
+14. Call compare_runs(model_name). This returns overall_delta, per-metric deltas, and an `improved` flag.
+15. Generate 2-3 ad-hoc samples with generate_sample for qualitative spot-check (different prompts/temperatures).
+
+### Phase 6: Decide — ship or iterate
+16. If compare_runs shows `improved: true` AND the verdict is OK/GOOD → proceed to final report.
+17. If no improvement OR verdict is still BAD/TERRIBLE:
+    - Diagnose: loss too high (need more iterations)? vocab too small (<UNK> heavy)? wrong datasets (off-topic)? overfitting (loss very low but samples repetitive)?
+    - Fix ONE thing at a time: continue training with more iterations, OR re-attach better datasets, OR adjust params and recreate.
+    - Re-run benchmark, call compare_runs again. Up to 2 retry iterations total.
+18. report_to_user(is_final=true) with: final benchmark scores, delta vs baseline (in %), sample outputs, and an honest verdict.
 
 ## Model Parameter Guide
 | Goal | layers | d_model | d_ff | vocab | iterations | lr |
 |------|--------|---------|------|-------|------------|------|
-| Quick test | 4 | 128 | 512 | 8000 | 1000-2000 | 3e-4 |
-| Short creative | 4 | 256 | 1024 | 10000 | 3000-5000 | 3e-4 |
-| Standard text | 6 | 256 | 1024 | 15000 | 5000-8000 | 3e-4 |
-| Quality text | 8 | 384 | 1536 | 20000 | 8000-15000 | 1e-4 |
-| Russian text | 6-8 | 256-384 | 1024 | 15000-20000 | 5000-10000 | 3e-4 |
-| Code | 6 | 384 | 1536 | 25000 | 5000-10000 | 3e-4 |
+| Quick test | 4 | 128 | 512 | 8000 | 1500-3000 | 3e-4 |
+| Short creative | 4 | 256 | 1024 | 10000 | 4000-6000 | 3e-4 |
+| Standard text | 6 | 256 | 1024 | 15000 | 6000-10000 | 3e-4 |
+| Quality text | 8 | 384 | 1536 | 20000 | 10000-20000 | 1e-4 |
+| Russian literary | 6-8 | 256-384 | 1024 | 15000-20000 | 8000-15000 | 3e-4 |
+| Code | 6 | 384 | 1536 | 25000 | 6000-12000 | 3e-4 |
 
 ## Critical Details
 - attach_dataset filename = "{catalog_id}.txt" (e.g., "ruslit_war_and_peace.txt")
 - For Russian: vocab MUST be ≥ 15000 (rich morphology)
 - More iterations = better quality but takes longer
-- If user set a time limit, adjust iterations to fit
+- If user set a time limit, adjust iterations AND reserve ~5 min at the end for benchmarking + comparison
 - batch_size: 16 default; 8 for large models
-- Generate samples with different prompts to test model diversity
-- A loss < 2.0 after training usually means decent quality
-- A loss > 4.0 usually means the model learned nothing useful
+- A loss < 2.5 after training usually means decent quality
+- A loss > 4.0 after many iterations usually means the model learned almost nothing useful — suspect bad data or wrong params
+
+## Proof-of-improvement bar
+Meaningful improvement = `overall_delta` > 0.02 (2%+ on the composite score). Smaller than that is noise — report it honestly as "no meaningful improvement" and describe what you would try next.
 
 ## Time Budget
 {time_budget_info}
@@ -229,6 +234,87 @@ AUTOPILOT_TOOLS_OPENAI = [
                     }
                 },
                 "required": ["model_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "design_benchmark",
+            "description": "Create a custom evaluation benchmark for a model based on the user's goal. YOU (the LLM) design the prompts — they should be specific to the goal (genre, language, style). This benchmark will be used to compare training runs. Call BEFORE training to establish a baseline, then run the SAME benchmark after training to prove improvement.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "string", "description": "Model this benchmark is for"},
+                    "goal": {"type": "string", "description": "What the model is supposed to do (e.g. 'Russian detective stories in Sherlock Holmes style')"},
+                    "language": {"type": "string", "description": "'ru' or 'en'"},
+                    "prompts": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "5-8 diverse prompts that represent the model's target use-case. Mix simple and challenging. Each prompt should be 2-6 words — a natural beginning for the generated text."
+                    },
+                    "rubric": {"type": "string", "description": "Brief description of what 'good' output looks like for this goal. Used for later human review."}
+                },
+                "required": ["model_name", "goal", "prompts"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_benchmark",
+            "description": "Run the current benchmark on a model and record the result in history. Use this to establish a baseline BEFORE training (on a fresh or existing model), and then AGAIN after training to prove improvement. Automatically uses the most recent benchmark for this model. Returns overall_score, per-metric scores, verdict, and samples.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "string", "description": "Name of the model to benchmark"},
+                    "label": {"type": "string", "description": "Short tag for this benchmark run, e.g. 'baseline', 'after 5k iter', 'final'"}
+                },
+                "required": ["model_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_model_history",
+            "description": "Retrieve the full training and benchmark history for a model. Returns all runs (creations, training sessions, benchmarks) with timestamps, configs, datasets used, and scores. Use this to understand what has already been tried before deciding next steps.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "string", "description": "Name of the model"}
+                },
+                "required": ["model_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "compare_runs",
+            "description": "Compare benchmark scores between two runs (before/after training) to PROVE whether quality improved. Returns overall delta, per-metric deltas, and a boolean 'improved' flag. By default compares the two most recent benchmarked runs. Use this after retraining to demonstrate improvement numerically.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "model_name": {"type": "string", "description": "Name of the model"},
+                    "run_a": {"type": "string", "description": "Optional: earlier run_id (default: second-to-last benchmarked run)"},
+                    "run_b": {"type": "string", "description": "Optional: later run_id (default: last benchmarked run)"}
+                },
+                "required": ["model_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "inspect_dataset",
+            "description": "Peek into a downloaded dataset file to understand its contents before attaching. Returns first 500 chars, line count, approx word count, and language detection. Helps decide which datasets actually fit the goal.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string", "description": "Dataset filename (e.g. 'ruslit_war_and_peace.txt')"}
+                },
+                "required": ["filename"]
             }
         }
     },
@@ -643,7 +729,8 @@ class ToolExecutor:
     def __init__(self, dataset_catalog, dataset_manager,
                  models_dir: Path, books_dir: Path, checkpoints_dir: Path,
                  training_status: dict, active_models: dict,
-                 start_training_fn: Callable, stop_training_fn: Callable = None):
+                 start_training_fn: Callable, stop_training_fn: Callable = None,
+                 history=None):
         self.catalog = dataset_catalog
         self.dm = dataset_manager
         self.models_dir = models_dir
@@ -653,6 +740,16 @@ class ToolExecutor:
         self.active_models = active_models
         self.start_training_fn = start_training_fn
         self.stop_training_fn = stop_training_fn
+        # Persistent history store — lazily create default if caller didn't pass one
+        if history is None:
+            try:
+                from model_history import ModelHistory
+                history = ModelHistory(self.models_dir.parent / "memory" / "model_history.json")
+            except Exception:
+                history = None
+        self.history = history
+        # Track the latest run_id per model so benchmarks attach to the right entry
+        self._last_run_id = {}
 
     def execute(self, tool_name: str, arguments: dict) -> dict:
         dispatch = {
@@ -666,6 +763,11 @@ class ToolExecutor:
             "check_training_status": self._check_training_status,
             "generate_sample": self._generate_sample,
             "evaluate_model": self._evaluate_model,
+            "design_benchmark": self._design_benchmark,
+            "run_benchmark": self._run_benchmark,
+            "get_model_history": self._get_model_history,
+            "compare_runs": self._compare_runs,
+            "inspect_dataset": self._inspect_dataset,
             "report_to_user": self._report_to_user,
         }
         handler = dispatch.get(tool_name)
@@ -752,6 +854,17 @@ class ToolExecutor:
                 "model": model, "tokenizer": tokenizer, "config": config
             }
 
+            # Record in persistent history
+            if self.history is not None:
+                try:
+                    run_id = self.history.record_run(
+                        model_name=name, run_type="create",
+                        config=config, notes="Initial model creation (untrained)"
+                    )
+                    self._last_run_id[name] = run_id
+                except Exception:
+                    pass
+
             return {"status": "success", "model_name": name, "parameters": params, "config": config}
         except Exception as e:
             return {"error": f"Failed to create model: {str(e)}"}
@@ -788,6 +901,28 @@ class ToolExecutor:
             # Start in background thread (same as /train endpoint)
             thread = threading.Thread(target=self.start_training_fn, args=(config,), daemon=True)
             thread.start()
+
+            # Record training run in history (finalized when training ends)
+            if self.history is not None:
+                try:
+                    # Collect attached datasets if dataset manager exposes them
+                    datasets = []
+                    try:
+                        attached = self.dm.get_attached(model_name) if hasattr(self.dm, "get_attached") else []
+                        datasets = [d.get("filename") if isinstance(d, dict) else str(d) for d in attached]
+                    except Exception:
+                        pass
+                    run_id = self.history.record_run(
+                        model_name=model_name, run_type="train",
+                        config={"max_iterations": max_iterations,
+                                "batch_size": batch_size,
+                                "learning_rate": learning_rate},
+                        datasets=datasets,
+                        notes="Training started"
+                    )
+                    self._last_run_id[model_name] = run_id
+                except Exception:
+                    pass
 
             return {"status": "training_started", "model_name": model_name,
                     "max_iterations": max_iterations, "batch_size": batch_size,
@@ -965,20 +1100,201 @@ class ToolExecutor:
                 verdict = "MEDIOCRE"
                 advice = "Loss is still high ({:.2f}). More iterations would improve quality.".format(loss)
 
+            # Composite overall_score in [0, 1] — higher is better
+            # Reward: low unk, high real-word ratio, good diversity, not too repetitive
+            div_score = min(vocabulary_diversity / 100.0, 1.0)
+            rep_score = max(0.0, 1.0 - avg_repetition)
+            unk_score = max(0.0, 1.0 - unk_ratio * 2)  # heavy penalty for <UNK>
+            overall_score = round(
+                0.30 * unk_score +
+                0.25 * real_word_ratio +
+                0.25 * div_score +
+                0.20 * rep_score,
+                4
+            )
+
             return {
                 "verdict": verdict,
                 "advice": advice,
+                "overall_score": overall_score,
                 "scores": {
                     "unk_ratio": round(unk_ratio, 3),
                     "real_word_ratio": round(real_word_ratio, 3),
                     "vocabulary_diversity": vocabulary_diversity,
                     "avg_repetition": round(avg_repetition, 3),
-                    "training_loss": round(loss, 4)
+                    "training_loss": round(loss, 4),
+                    "unk_score": round(unk_score, 3),
+                    "diversity_score": round(div_score, 3),
+                    "non_repetition_score": round(rep_score, 3)
                 },
                 "samples": samples
             }
         except Exception as e:
             return {"error": f"Evaluation failed: {str(e)}"}
+
+    # ─── New: benchmark / history / inspection tools ─────────────────────
+
+    def _design_benchmark(self, model_name: str, goal: str, prompts: list,
+                          language: str = "en", rubric: str = "") -> dict:
+        """Save an LLM-designed benchmark definition tied to this model."""
+        if self.history is None:
+            return {"error": "History storage not available"}
+        if not prompts or not isinstance(prompts, list) or len(prompts) < 2:
+            return {"error": "Need at least 2 prompts for a meaningful benchmark"}
+        prompts = [str(p).strip() for p in prompts if str(p).strip()][:10]
+        try:
+            bid = self.history.save_benchmark(model_name, goal, prompts, language, rubric)
+            return {
+                "status": "success",
+                "benchmark_id": bid,
+                "model_name": model_name,
+                "prompt_count": len(prompts),
+                "language": language,
+                "message": f"Benchmark '{bid}' saved. Use run_benchmark to establish a baseline before training."
+            }
+        except Exception as e:
+            return {"error": f"Failed to save benchmark: {str(e)}"}
+
+    def _run_benchmark(self, model_name: str, label: str = "") -> dict:
+        """Run the most recent benchmark for a model and record the result."""
+        if self.history is None:
+            return {"error": "History storage not available"}
+        latest = self.history.latest_benchmark(model_name)
+        if not latest:
+            return {"error": f"No benchmark defined for '{model_name}'. Call design_benchmark first."}
+        benchmark_id, bdef = latest
+        prompts = bdef.get("prompts", [])
+        language = bdef.get("language", "en")
+
+        # Run the existing evaluation with the benchmark's prompts
+        eval_result = self._evaluate_model(model_name=model_name, language=language, prompts=prompts)
+        if "error" in eval_result:
+            return eval_result
+
+        # Record on current run if one is active; else create standalone benchmark run
+        run_id = self._last_run_id.get(model_name)
+        run_type = "attached"
+        if run_id:
+            # Check if this run already has a benchmark attached; if so, create new entry
+            history_snapshot = self.history.get_history(model_name)
+            existing_runs = history_snapshot.get("runs", [])
+            target_run = next((r for r in existing_runs if r["run_id"] == run_id), None)
+            if target_run and target_run.get("benchmark"):
+                # Current run already has a benchmark — create fresh standalone entry
+                run_id = self.history.record_benchmark_only(
+                    model_name, benchmark_id, eval_result,
+                    notes=f"label={label}" if label else ""
+                )
+                self._last_run_id[model_name] = run_id
+                run_type = "standalone"
+            else:
+                # Attach to existing run
+                self.history.attach_benchmark_result(model_name, run_id, benchmark_id, eval_result)
+        else:
+            # No active run — create standalone benchmark entry
+            run_id = self.history.record_benchmark_only(
+                model_name, benchmark_id, eval_result,
+                notes=f"label={label}" if label else ""
+            )
+            self._last_run_id[model_name] = run_id
+            run_type = "standalone"
+
+        return {
+            "status": "success",
+            "benchmark_id": benchmark_id,
+            "run_id": run_id,
+            "attachment": run_type,
+            "label": label,
+            "verdict": eval_result.get("verdict"),
+            "overall_score": eval_result.get("overall_score"),
+            "scores": eval_result.get("scores"),
+            "samples_count": len(eval_result.get("samples", [])),
+            "samples_preview": [
+                {"prompt": s.get("prompt"), "generated": (s.get("generated") or "")[:160]}
+                for s in eval_result.get("samples", [])[:3]
+            ]
+        }
+
+    def _get_model_history(self, model_name: str) -> dict:
+        """Return the full run history for a model."""
+        if self.history is None:
+            return {"error": "History storage not available"}
+        h = self.history.get_history(model_name)
+        if not h.get("exists"):
+            return {"model_name": model_name, "exists": False,
+                    "message": "No history for this model yet (never trained via autopilot)."}
+        # Trim run data for LLM consumption — drop verbose samples
+        trimmed_runs = []
+        for r in h["runs"][-10:]:  # last 10 runs only
+            bench = r.get("benchmark", {})
+            trimmed_runs.append({
+                "run_id": r["run_id"],
+                "timestamp": r["timestamp"],
+                "type": r["type"],
+                "datasets": r.get("datasets", []),
+                "training": r.get("training", {}),
+                "benchmark_overall": bench.get("overall_score"),
+                "benchmark_verdict": bench.get("verdict"),
+                "notes": r.get("notes", "")
+            })
+        return {
+            "model_name": model_name,
+            "exists": True,
+            "created_at": h.get("created_at"),
+            "run_count": h.get("run_count"),
+            "recent_runs": trimmed_runs,
+            "benchmark_count": len(h.get("benchmarks", {}))
+        }
+
+    def _compare_runs(self, model_name: str, run_a: str = None, run_b: str = None) -> dict:
+        """Compute before/after delta between two benchmarked runs."""
+        if self.history is None:
+            return {"error": "History storage not available"}
+        return self.history.compare_runs(model_name, run_a, run_b)
+
+    def _inspect_dataset(self, filename: str) -> dict:
+        """Peek into a downloaded dataset file."""
+        try:
+            path = self.books_dir / filename
+            if not path.exists():
+                return {"error": f"File not found: {filename}"}
+            size_bytes = path.stat().st_size
+            # Read first ~8 KB for preview
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                head = f.read(8000)
+
+            # Stats
+            preview = head[:500]
+            # Count lines + approx word count across whole file (streaming)
+            line_count = 0
+            word_count = 0
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    line_count += 1
+                    word_count += len(line.split())
+
+            # Cheap language detection: ratio of Cyrillic to Latin chars
+            cyrillic = sum(1 for c in head if "\u0400" <= c <= "\u04FF")
+            latin = sum(1 for c in head if ("a" <= c.lower() <= "z"))
+            if cyrillic + latin == 0:
+                lang_guess = "unknown"
+            elif cyrillic > latin * 2:
+                lang_guess = "ru"
+            elif latin > cyrillic * 2:
+                lang_guess = "en"
+            else:
+                lang_guess = "mixed"
+
+            return {
+                "filename": filename,
+                "size_kb": round(size_bytes / 1024, 1),
+                "line_count": line_count,
+                "word_count": word_count,
+                "language_guess": lang_guess,
+                "preview": preview
+            }
+        except Exception as e:
+            return {"error": f"Inspect failed: {str(e)}"}
 
     def _report_to_user(self, message: str, is_final: bool = False) -> dict:
         return {"status": "reported", "message": message, "is_final": is_final}
@@ -1193,9 +1509,20 @@ class LLMAutopilot:
 
             if not status.get("is_training"):
                 self._log("status", "Training completed!")
+                # Finalize training record in history
+                self._finalize_training_in_history(status, int(now - started_at))
                 self.messages.append({
                     "role": "user",
-                    "content": f"Training has completed. Final status: loss={status.get('current_loss')}, reward={status.get('current_reward')}, iterations={status.get('current_iteration')}. Please generate some samples to evaluate the model quality and then report the final results to the user."
+                    "content": (
+                        f"Training has completed. Final status: "
+                        f"loss={status.get('current_loss')}, "
+                        f"reward={status.get('current_reward')}, "
+                        f"iterations={status.get('current_iteration')}, "
+                        f"duration={int(now - started_at)}s. "
+                        f"Now run the benchmark AGAIN with run_benchmark(label='after_train') "
+                        f"and then call compare_runs to prove whether quality improved vs the baseline. "
+                        f"Do NOT skip this — the user requires numerical proof of improvement."
+                    )
                 })
                 return
 
@@ -1214,9 +1541,16 @@ class LLMAutopilot:
                 except Exception:
                     pass
                 time.sleep(3)
+                self._finalize_training_in_history(status, int(elapsed))
                 self.messages.append({
                     "role": "user",
-                    "content": f"Training was force-stopped after {int(elapsed/60)} minutes (wall-clock limit). Got to iteration {cur_iter}/{max_iter}, loss={loss}, reward={reward}. Please generate samples to evaluate whatever the model learned, and report results."
+                    "content": (
+                        f"Training was force-stopped after {int(elapsed/60)} minutes (wall-clock limit). "
+                        f"Got to iteration {cur_iter}/{max_iter}, loss={loss}, reward={reward}. "
+                        f"Run the benchmark with run_benchmark(label='after_force_stop') and then "
+                        f"call compare_runs to check if even partial training improved quality vs baseline. "
+                        f"Report findings to the user."
+                    )
                 })
                 return
 
@@ -1239,9 +1573,15 @@ class LLMAutopilot:
                     except Exception:
                         pass
                     time.sleep(3)
+                    self._finalize_training_in_history(status, int(now - started_at))
                     self.messages.append({
                         "role": "user",
-                        "content": f"Training was stopped because it stalled at iteration {cur_iter}/{max_iter} for {int(stall_duration)}s. Final loss={loss}, reward={reward}. Please generate samples to evaluate whatever was learned, and report results."
+                        "content": (
+                            f"Training stalled at iteration {cur_iter}/{max_iter} for {int(stall_duration)}s and was stopped. "
+                            f"Final loss={loss}, reward={reward}. "
+                            f"Run the benchmark with run_benchmark(label='after_stall') and call compare_runs "
+                            f"to check if the partial training still improved quality vs baseline. Report findings."
+                        )
                     })
                     return
 
@@ -1268,3 +1608,33 @@ class LLMAutopilot:
                     last_logged_pct = pct_bucket
 
         self._log("system", "Monitoring stopped by user.")
+
+    def _finalize_training_in_history(self, status: dict, duration_sec: int):
+        """Update the training run record with final metrics when training ends."""
+        history = getattr(self.executor, "history", None)
+        if history is None:
+            return
+        model_name = status.get("model_name")
+        if not model_name:
+            return
+        last_run_id = self.executor._last_run_id.get(model_name)
+        if not last_run_id:
+            return
+        try:
+            with history._lock:
+                m = history._data.get("models", {}).get(model_name)
+                if not m:
+                    return
+                for r in m.get("runs", []):
+                    if r["run_id"] == last_run_id and r["type"] == "train":
+                        r["training"] = {
+                            "iterations": status.get("current_iteration", 0),
+                            "max_iterations": status.get("max_iterations", 0),
+                            "final_loss": round(status.get("current_loss", 0), 4),
+                            "final_reward": round(status.get("current_reward", 0), 4),
+                            "duration_sec": duration_sec
+                        }
+                        break
+                history._save()
+        except Exception:
+            pass

@@ -32,6 +32,7 @@ from dataset_catalog import DatasetCatalog
 from reward_model import RewardComputer
 from training_analytics import TrainingAnalytics
 from llm_autopilot import LLMAutopilot, LLMProvider, ToolExecutor
+from model_history import ModelHistory
 
 app = FastAPI(title="AZR Model Trainer v2")
 
@@ -42,7 +43,9 @@ CHECKPOINTS_DIR = BASE_DIR / "checkpoints"
 TEMPLATES_DIR = BASE_DIR / "templates"
 REPORTS_DIR = BASE_DIR / "reports"
 
-for dir_path in [MODELS_DIR, BOOKS_DIR, CHECKPOINTS_DIR, REPORTS_DIR]:
+MEMORY_DIR = BASE_DIR / "memory"
+
+for dir_path in [MODELS_DIR, BOOKS_DIR, CHECKPOINTS_DIR, REPORTS_DIR, MEMORY_DIR]:
     dir_path.mkdir(exist_ok=True)
 
 # Менеджер датасетов
@@ -50,6 +53,9 @@ dataset_manager = DatasetManager("datasets_db.json")
 
 # Каталог датасетов
 dataset_catalog = DatasetCatalog(BOOKS_DIR)
+
+# Persistent model history — used by autopilot for baseline/after comparisons
+model_history = ModelHistory(MEMORY_DIR / "model_history.json")
 
 training_status = {
     "is_training": False,
@@ -1646,7 +1652,8 @@ async def start_autopilot(config: AutopilotConfig):
             training_status=training_status,
             active_models=active_models,
             start_training_fn=train_model_background,
-            stop_training_fn=lambda: active_trainer.stop_training() if active_trainer else None
+            stop_training_fn=lambda: active_trainer.stop_training() if active_trainer else None,
+            history=model_history
         )
         active_autopilot = LLMAutopilot(provider, executor)
         active_autopilot.start(config.goal, time_budget_minutes=config.time_budget or 0)
