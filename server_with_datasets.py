@@ -178,11 +178,12 @@ async def read_root():
 
 @app.post("/create_model")
 async def create_model(config: ModelConfig):
-    # Friendly validation — non-programmers should get a clear message, not a stack trace
-    safe_name = re.sub(r"[^A-Za-z0-9_\-]", "_", config.name.strip())[:60]
+    # Friendly validation — non-programmers should get a clear message, not a stack trace.
+    # \w is Unicode-aware: Russian and other alphabets are valid model names.
+    safe_name = re.sub(r"[^\w\-]", "_", config.name.strip())[:60].strip("_ ")
     if not safe_name:
         raise HTTPException(status_code=400,
-                            detail="Model name is empty or invalid. Use letters, digits, _ or -.")
+                            detail="Model name is empty or invalid. Use letters (any language), digits, _ or -.")
     config.name = safe_name
     if config.d_model % config.num_heads != 0:
         raise HTTPException(

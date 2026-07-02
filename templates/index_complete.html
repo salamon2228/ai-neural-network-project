@@ -170,6 +170,13 @@
         .b-target input:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(217,119,87,0.15); }
         .b-target input::placeholder { font-weight: 500; }
         .b-unit { color: var(--faint); font-size: 0.85em; font-weight: 600; }
+        .bench-auto { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(217,119,87,0.06); border: 1px solid rgba(217,119,87,0.3); border-radius: 10px; padding: 10px 14px; margin: 4px 0 10px; }
+        .bench-auto label { font-weight: 600; color: var(--text); font-size: 0.88em; }
+        .bench-auto input { width: 74px; padding: 8px 6px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); color: var(--ink); font-size: 1.05em; font-weight: 700; text-align: center; }
+        .bench-auto input:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(217,119,87,0.15); }
+        .bench-auto-btn { margin: 0; padding: 8px 16px; font-size: 0.85em; }
+        .bench-auto-hint { color: var(--faint); font-size: 0.78em; }
+        .bench-auto-note { color: var(--green); font-size: 0.8em; font-weight: 600; }
         .bench-card .form-group, .bench-card > div[style*="display:flex"] { padding-left: 20px; padding-right: 20px; }
         .bench-card > div[style*="display:flex"] { padding-bottom: 18px; }
         @media (max-width: 768px) {
@@ -546,7 +553,14 @@
             <div class="info-card bench-card">
                 <div class="bench-head">
                     <h3 class="bench-title" data-i18n="bench_title">Целевые бенчмарки</h3>
-                    <p class="bench-sub" data-i18n="bench_desc">Впишите цели — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки Baseline и Результат заполняются автоматически по ходу обучения.</p>
+                    <p class="bench-sub" data-i18n="bench_desc">Все показатели — в баллах от 0 до 100. Впишите нужный балл ниже, остальные цели подберутся сами (их можно поправить вручную). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем.</p>
+                    <div class="bench-auto">
+                        <label for="ap_auto_level" data-i18n="bench_auto_label">Сколько баллов нужно?</label>
+                        <input type="number" id="ap_auto_level" min="10" max="95" step="5" placeholder="65">
+                        <button type="button" class="btn btn-outline bench-auto-btn" onclick="autoFillTargets()" data-i18n="bench_auto_btn">Подобрать цели</button>
+                        <span class="bench-auto-note" id="ap_auto_note" style="display:none;"></span>
+                        <span class="bench-auto-hint" data-i18n="bench_auto_hint">50 — нормально, 65 — хорошо, 80 — отлично</span>
+                    </div>
                 </div>
                 <div class="bench-wrap">
                     <div class="bench-model-title" id="ap_bench_title" data-i18n="bench_your_model">Ваша модель</div>
@@ -555,33 +569,33 @@
                             <tr>
                                 <th class="b-lblh"></th>
                                 <th class="b-hero"><span class="b-col-name" data-i18n="bench_col_result">Результат</span><span class="b-col-sub" data-i18n="bench_col_result_sub">после обучения</span></th>
-                                <th class="b-plain"><span class="b-col-name" data-i18n="bench_col_target">Цель</span><span class="b-col-sub" data-i18n="bench_col_target_sub">впишите число</span></th>
+                                <th class="b-plain"><span class="b-col-name" data-i18n="bench_col_target">Цель</span><span class="b-col-sub" data-i18n="bench_col_target_sub">баллы 0–100</span></th>
                                 <th class="b-ref"><span class="b-col-name" data-i18n="bench_col_baseline">До обучения</span><span class="b-col-sub" data-i18n="bench_col_ref_sub">для сравнения</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_overall">Качество текста</span><span class="sub" data-i18n="bench_s_overall">общий балл · выше = лучше</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_overall">Качество текста</span><span class="sub" data-i18n="bench_s_overall">общий балл 0–100 · выше = лучше</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_overall">—</span><span class="b-cap" id="ap_st_overall"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_target_score" min="0" max="100" step="5" placeholder="65"><span class="b-unit">%</span></div></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_target_score" min="0" max="100" step="5" placeholder="65"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_overall">—</span></td>
                             </tr>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_improve">Прогресс обучения</span><span class="sub" data-i18n="bench_s_improve">рост балла vs старт</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_improve">Прогресс обучения</span><span class="sub" data-i18n="bench_s_improve">прирост баллов после обучения</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_improvement">—</span><span class="b-cap" id="ap_st_improvement"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20"><span class="b-unit">%</span></div></td>
-                                <td class="b-ref"><span class="b-val b-val-ref">0%</span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20"></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref">0</span></td>
                             </tr>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_unk">Чистота текста</span><span class="sub" data-i18n="bench_s_unk">мусорные слова &lt;UNK&gt; · ниже = лучше</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_unk">Чистота текста</span><span class="sub" data-i18n="bench_s_unk">мусорные слова &lt;UNK&gt;, баллы · ниже = лучше</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_unk">—</span><span class="b-cap" id="ap_st_unk"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_max_unk" min="0" max="100" step="5" placeholder="10"><span class="b-unit">%</span></div></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_max_unk" min="0" max="100" step="5" placeholder="10"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_unk">—</span></td>
                             </tr>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_rep">Разнообразие</span><span class="sub" data-i18n="bench_s_rep">повторяемость · ниже = лучше</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_rep">Разнообразие</span><span class="sub" data-i18n="bench_s_rep">повторяемость, баллы · ниже = лучше</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_rep">—</span><span class="b-cap" id="ap_st_rep"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_max_rep" min="0" max="100" step="5" placeholder="50"><span class="b-unit">%</span></div></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_max_rep" min="0" max="100" step="5" placeholder="50"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_rep">—</span></td>
                             </tr>
                             <tr>
@@ -591,9 +605,9 @@
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_vocab">—</span></td>
                             </tr>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_real">Настоящие слова</span><span class="sub" data-i18n="bench_s_real">доля осмысленных слов · выше = лучше</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_real">Настоящие слова</span><span class="sub" data-i18n="bench_s_real">осмысленные слова, баллы · выше = лучше</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_real">—</span><span class="b-cap" id="ap_st_real"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_realwords" min="0" max="100" step="5" placeholder="70"><span class="b-unit">%</span></div></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_realwords" min="0" max="100" step="5" placeholder="70"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_real">—</span></td>
                             </tr>
                         </tbody>
@@ -1307,26 +1321,30 @@ var TRANSLATIONS = {
         autopilot_time_budget: 'Лимит времени (минут):',
         autopilot_time_hint: '0 = без лимита. LLM подстроит кол-во итераций под время.',
         bench_title: 'Целевые бенчмарки',
-        bench_desc: 'Впишите цели в колонку «Цель» — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки «Результат» и «До обучения» заполняются автоматически по ходу обучения.',
+        bench_desc: 'Все показатели — в баллах от 0 до 100. Впишите нужный балл ниже, остальные цели подберутся сами (их можно поправить вручную). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем.',
+        bench_auto_label: 'Сколько баллов нужно?',
+        bench_auto_btn: 'Подобрать цели',
+        bench_auto_hint: '50 — нормально, 65 — хорошо, 80 — отлично',
+        bench_auto_done: '✓ Цели подобраны',
         bench_your_model: 'Ваша модель',
         bench_col_target: 'Цель',
-        bench_col_target_sub: 'впишите число',
+        bench_col_target_sub: 'баллы 0–100',
         bench_col_baseline: 'До обучения',
         bench_col_ref_sub: 'для сравнения',
         bench_col_result: 'Результат',
         bench_col_result_sub: 'после обучения',
         bench_m_overall: 'Качество текста',
-        bench_s_overall: 'общий балл · выше = лучше',
+        bench_s_overall: 'общий балл 0–100 · выше = лучше',
         bench_m_improve: 'Прогресс обучения',
-        bench_s_improve: 'рост балла vs старт',
+        bench_s_improve: 'прирост баллов после обучения',
         bench_m_unk: 'Чистота текста',
-        bench_s_unk: 'мусорные слова <UNK> · ниже = лучше',
+        bench_s_unk: 'мусорные слова <UNK>, баллы · ниже = лучше',
         bench_m_rep: 'Разнообразие',
-        bench_s_rep: 'повторяемость · ниже = лучше',
+        bench_s_rep: 'повторяемость, баллы · ниже = лучше',
         bench_m_vocab: 'Словарный запас',
         bench_s_vocab: 'уникальных слов в тестах',
         bench_m_real: 'Настоящие слова',
-        bench_s_real: 'доля осмысленных слов · выше = лучше',
+        bench_s_real: 'осмысленные слова, баллы · выше = лучше',
         bench_pass: 'цель достигнута',
         bench_fail: 'цель не достигнута',
         word_iteration: 'Итерация',
@@ -1513,26 +1531,30 @@ var TRANSLATIONS = {
         autopilot_time_budget: 'Time limit (minutes):',
         autopilot_time_hint: '0 = no limit. LLM will adjust iterations to fit the time.',
         bench_title: 'Target benchmarks',
-        bench_desc: 'Enter your targets in the "Target" column — the autopilot must reach them and prove it with numbers, or honestly report failure. Empty target = not checked. The Result and Baseline columns fill in automatically as training progresses.',
+        bench_desc: 'All metrics use points from 0 to 100. Enter the score you need below and the other targets will be picked automatically (you can adjust them manually). The autopilot must reach the targets and prove it with numbers — or honestly report failure. Empty target = not checked.',
+        bench_auto_label: 'How many points do you need?',
+        bench_auto_btn: 'Pick targets',
+        bench_auto_hint: '50 — okay, 65 — good, 80 — excellent',
+        bench_auto_done: '✓ Targets picked',
         bench_your_model: 'Your model',
         bench_col_target: 'Target',
-        bench_col_target_sub: 'enter a number',
+        bench_col_target_sub: 'points 0–100',
         bench_col_baseline: 'Baseline',
         bench_col_ref_sub: 'for reference',
         bench_col_result: 'Result',
         bench_col_result_sub: 'after training',
         bench_m_overall: 'Text quality',
-        bench_s_overall: 'overall score · higher = better',
+        bench_s_overall: 'overall score 0–100 · higher = better',
         bench_m_improve: 'Training progress',
-        bench_s_improve: 'score growth vs start',
+        bench_s_improve: 'points gained after training',
         bench_m_unk: 'Text cleanliness',
-        bench_s_unk: 'garbage words <UNK> · lower = better',
+        bench_s_unk: 'garbage words <UNK>, points · lower = better',
         bench_m_rep: 'Diversity',
-        bench_s_rep: 'repetitiveness · lower = better',
+        bench_s_rep: 'repetitiveness, points · lower = better',
         bench_m_vocab: 'Vocabulary',
         bench_s_vocab: 'unique words in tests',
         bench_m_real: 'Real words',
-        bench_s_real: 'share of meaningful words · higher = better',
+        bench_s_real: 'meaningful words, points · higher = better',
         bench_pass: 'target met',
         bench_fail: 'target not met',
         word_iteration: 'Iteration',
@@ -1743,15 +1765,34 @@ function resetBenchTable() {
     document.getElementById('ap_bench_title').textContent = t('bench_your_model');
 }
 
-// Доли 0..1 показываем как проценты (63.2%), счётчики — как числа (1618)
+// Доли 0..1 показываем как БАЛЛЫ 0–100 (72), счётчики — как числа (84)
 function fmtBenchPct(v) {
     if (v === null || v === undefined) return '—';
     if (typeof v !== 'number') return String(v);
-    return (v * 100).toFixed(1).replace(/\.0$/, '') + '%';
+    return (v * 100).toFixed(1).replace(/\.0$/, '');
 }
 function fmtBenchInt(v) {
     if (v === null || v === undefined) return '—';
     return String(Math.round(v));
+}
+
+// Автоподбор целей: пользователь вписывает ОДИН нужный балл (0–100),
+// остальные цели выводятся из формулы общего балла бэкенда:
+// overall = 0.30*(1-2*unk) + 0.25*real + 0.25*min(vocab/100,1) + 0.20*(1-rep)
+function autoFillTargets() {
+    var raw = document.getElementById('ap_auto_level').value;
+    var lvl = parseFloat(raw);
+    if (isNaN(lvl)) { lvl = 65; document.getElementById('ap_auto_level').value = 65; }
+    lvl = Math.max(10, Math.min(95, Math.round(lvl)));
+    var tf = lvl / 100;
+    document.getElementById('ap_target_score').value = lvl;
+    document.getElementById('ap_min_improvement').value = Math.max(10, Math.round(lvl / 4));
+    document.getElementById('ap_max_unk').value = Math.round((1 - tf) / 2 * 100);
+    document.getElementById('ap_max_rep').value = Math.round((1 - tf) * 100);
+    document.getElementById('ap_min_vocab').value = lvl;
+    document.getElementById('ap_min_realwords').value = lvl;
+    var note = document.getElementById('ap_auto_note');
+    if (note) { note.style.display = 'inline'; note.textContent = t('bench_auto_done'); }
 }
 
 function setBenchCap(id, passed) {
@@ -1783,7 +1824,7 @@ function updateBenchTable(sb, modelName) {
     document.getElementById('ap_res_overall').textContent = fmtBenchPct(latestOverall);
     document.getElementById('ap_res_improvement').textContent =
         (sb.improvement_pct === null || sb.improvement_pct === undefined) ? '—'
-        : ((sb.improvement_pct >= 0 ? '+' : '') + sb.improvement_pct.toFixed(1) + '%');
+        : ((sb.improvement_pct >= 0 ? '+' : '') + sb.improvement_pct.toFixed(1).replace(/\.0$/, ''));
     document.getElementById('ap_res_unk').textContent = fmtBenchPct(latest.unk_ratio);
     document.getElementById('ap_res_rep').textContent = fmtBenchPct(latest.avg_repetition);
     document.getElementById('ap_res_vocab').textContent = fmtBenchInt(latest.vocabulary_diversity);

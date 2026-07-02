@@ -889,10 +889,11 @@ class ToolExecutor:
             from tokenizer import SimpleTokenizer
             import re as _re
 
-            # Sanitize name — it becomes a directory on disk
-            name = _re.sub(r"[^A-Za-z0-9_\-]", "_", str(name).strip())[:60]
+            # Sanitize name — it becomes a directory on disk.
+            # \w is Unicode-aware: Russian model names stay readable.
+            name = _re.sub(r"[^\w\-]", "_", str(name).strip())[:60].strip("_ ")
             if not name:
-                return {"error": "Model name is empty after sanitization. Use letters, digits, _ or -."}
+                return {"error": "Model name is empty after sanitization. Use letters (any language), digits, _ or -."}
 
             # Clamp params to sane ranges so a confused LLM can't create a monster
             notes = []
