@@ -75,6 +75,10 @@ class AZRTrainer:
         self._eta_seconds = -1
         self._memory_mb = 0.0
 
+        # Параметры по-батчевого сохранения (устанавливаются в train_continuous)
+        self._save_every = 0
+        self._checkpoint_dir = Path('checkpoints')
+
     def train_step(self, batch):
         self.model.train()
         x, y = batch
@@ -254,6 +258,18 @@ class AZRTrainer:
             num_batches += 1
             self.iteration += 1
 
+            # Чекпоинт СТРОГО каждые save_every итераций (раньше сохранялся только
+            # на границе эпохи и лишь при случайном совпадении с save_every —
+            # чекпоинты появлялись непредсказуемо)
+            if self._save_every > 0 and self.iteration % self._save_every == 0:
+                self.save_checkpoint(
+                    self._checkpoint_dir / f"model_iter_{self.iteration}.pt",
+                    save_optimizer=True
+                )
+                self.cleanup_old_checkpoints(self._checkpoint_dir, keep_last=7)
+                if self.analytics:
+                    self._run_checkpoint_analytics(self.current_loss, self.current_reward)
+
             # Останавливаемся ровно на max_iterations
             if max_iterations > 0 and self.iteration >= max_iterations:
                 break
@@ -293,6 +309,9 @@ class AZRTrainer:
                         save_every=1000, checkpoint_dir='checkpoints', resume_from=None):
         checkpoint_dir = Path(checkpoint_dir)
         checkpoint_dir.mkdir(exist_ok=True, parents=True)
+        # Для по-батчевого сохранения внутри azr_train_epoch
+        self._save_every = max(0, int(save_every))
+        self._checkpoint_dir = checkpoint_dir
 
         # Chunk length must not exceed the model's max_seq_len (crash otherwise)
         chunk_len = min(128, self.model.max_seq_len)
@@ -376,23 +395,14 @@ class AZRTrainer:
                       f"LR: {self.optimizer.param_groups[0]['lr']:.6f} | "
                       f"Speed: {self._tokens_per_sec:.0f} tok/s")
 
-                # Чекпоинт + аналитика
-                if self.iteration % save_every == 0:
-                    self.save_checkpoint(
-                        checkpoint_dir / f"model_iter_{self.iteration}.pt",
-                        save_optimizer=True
-                    )
-                    self.cleanup_old_checkpoints(checkpoint_dir, keep_last=7)
-
-                    # Аналитика на чекпоинте
-                    if self.analytics:
-                        self._run_checkpoint_analytics(avg_loss, avg_reward)
+                # Чекпоинты сохраняются по-батчево внутри azr_train_epoch —
+                # строго каждые save_every итераций
 
             if self.should_stop:
                 print("Training paused. Save checkpoint to resume later.")
                 self.save_checkpoint(
                     checkpoint_dir / f"model_paused_{self.iteration}.pt",
-                    save_optimizer=True
+                    save_optimizer=True, kind="paused"
                 )
             else:
                 print("Training completed!")
@@ -421,7 +431,7 @@ class AZRTrainer:
             print("Saving checkpoint...")
             self.save_checkpoint(
                 checkpoint_dir / f"model_interrupted_{self.iteration}.pt",
-                save_optimizer=True
+                save_optimizer=True, kind="interrupted"
             )
         except Exception as e:
             print(f"Training error: {e}")
@@ -430,7 +440,7 @@ class AZRTrainer:
             print("Saving checkpoint...")
             self.save_checkpoint(
                 checkpoint_dir / f"model_error_{self.iteration}.pt",
-                save_optimizer=True
+                save_optimizer=True, kind="error"
             )
 
         return self.training_history
@@ -486,12 +496,27 @@ class AZRTrainer:
 
             if len(checkpoints) > keep_last:
                 to_delete = checkpoints[:-keep_last]
+                deleted_names = []
                 for cp in to_delete:
                     try:
                         Path(cp).unlink()
+                        deleted_names.append(Path(cp).name)
                         print(f"   Deleted old checkpoint: {Path(cp).name}")
                     except Exception as e:
                         print(f"   Failed to delete {Path(cp).name}: {e}")
+                # Убираем удалённые файлы из манифеста
+                if deleted_names:
+                    try:
+                        manifest_path = Path(checkpoint_dir) / "manifest.json"
+                        if manifest_path.exists():
+                            with open(manifest_path, "r", encoding="utf-8") as f:
+                                manifest = json.load(f)
+                            for name in deleted_names:
+                                manifest.pop(name, None)
+                            with open(manifest_path, "w", encoding="utf-8") as f:
+                                json.dump(manifest, f, ensure_ascii=False, indent=1)
+                    except Exception as e:
+                        print(f"   Manifest prune failed: {e}")
         except Exception as e:
             print(f"   Cleanup failed: {e}")
 
@@ -499,7 +524,38 @@ class AZRTrainer:
         self.should_stop = True
         print("Stop signal received, will pause after current batch...")
 
-    def save_checkpoint(self, path, save_optimizer=False):
+    def _update_manifest(self, path, kind):
+        """Записать метаданные чекпоинта в manifest.json рядом с файлами.
+        Благодаря манифесту UI показывает loss/дату/тип без загрузки .pt файлов."""
+        try:
+            path = Path(path)
+            manifest_path = path.parent / "manifest.json"
+            manifest = {}
+            if manifest_path.exists():
+                try:
+                    with open(manifest_path, "r", encoding="utf-8") as f:
+                        manifest = json.load(f)
+                except (json.JSONDecodeError, OSError):
+                    manifest = {}
+            val_loss = 0.0
+            if self.training_history:
+                val_loss = self.training_history[-1].get('val_loss', 0.0)
+            manifest[path.name] = {
+                "iteration": self.iteration,
+                "kind": kind,  # auto | paused | interrupted | error
+                "loss": round(float(self.current_loss), 4),
+                "val_loss": round(float(val_loss), 4),
+                "reward": round(float(self.current_reward), 4),
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+            }
+            tmp = manifest_path.with_suffix(".json.tmp")
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, ensure_ascii=False, indent=1)
+            tmp.replace(manifest_path)
+        except Exception as e:
+            print(f"   Manifest update failed: {e}")
+
+    def save_checkpoint(self, path, save_optimizer=False, kind="auto"):
         try:
             # Full architecture config so a checkpoint alone is enough to rebuild the model
             try:
@@ -538,6 +594,7 @@ class AZRTrainer:
                     checkpoint['scheduler_state_dict'] = self.scheduler.state_dict()
 
             torch.save(checkpoint, path, _use_new_zipfile_serialization=False)
+            self._update_manifest(path, kind)
             print(f"Checkpoint saved: {path.name}")
             return True
         except Exception as e:

@@ -362,7 +362,7 @@
             <h2 data-i18n="training_title">Обучение модели</h2>
             <div class="form-group">
                 <label data-i18n="select_model">Выбрать модель:</label>
-                <select id="train_model_name"></select>
+                <select id="train_model_name" onchange="loadCheckpointList()"></select>
             </div>
             <div class="grid">
                 <div class="form-group">
@@ -416,6 +416,12 @@
             <div class="status-box" id="reward_components_box" style="display:none;">
                 <h3 data-i18n="reward_components">Компоненты награды</h3>
                 <div id="reward_components_list"></div>
+            </div>
+            <div class="status-box" id="ckpt_box">
+                <h3 data-i18n="ckpt_title">Чекпоинты — сохранённые версии модели</h3>
+                <p style="color:#8A857A;font-size:0.85em;line-height:1.55;margin-bottom:10px;" data-i18n="ckpt_explain">Чекпоинт — это автосохранение модели во время обучения. Он создаётся сам: каждые «Save Every» итераций (поле выше), при нажатии «Остановить» и при ошибке. Хранятся последние 7 автосохранений. Любые два чекпоинта можно сравнить на вкладке «Сравнение» — увидите, как модель умнела.</p>
+                <button class="btn btn-outline" onclick="loadCheckpointList()" style="padding:8px 16px;font-size:0.85em;" data-i18n="ckpt_refresh">Обновить список</button>
+                <div id="ckpt_list" style="margin-top:8px;"></div>
             </div>
         </div>
 
@@ -514,6 +520,7 @@
                             <option value="openai">OpenAI (GPT-4o)</option>
                             <option value="anthropic">Anthropic (Claude)</option>
                             <option value="openai_compatible" data-i18n-option="autopilot_opt_local">Local / Ollama / LM Studio</option>
+                            <option value="custom" data-i18n-option="autopilot_opt_custom">Custom endpoint (свой API)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -1061,14 +1068,63 @@ async function generateBeforeAfter() {
 }
 
 // === COMPARISON ===
+// Человекочитаемая подпись чекпоинта: «Итерация 2000 · loss 3.42 · авто · 02.07 14:32»
+function ckptDate(ts) {
+    if (!ts || ts.length < 16) return '';
+    return ts.slice(8, 10) + '.' + ts.slice(5, 7) + ' ' + ts.slice(11, 16);
+}
+function ckptLabel(c) {
+    var parts = [t('word_iteration') + ' ' + c.iteration];
+    if (c.loss !== null && c.loss !== undefined) parts.push('loss ' + Number(c.loss).toFixed(2));
+    parts.push(t('ckpt_kind_' + (c.kind || 'auto')));
+    var d = ckptDate(c.timestamp);
+    if (d) parts.push(d);
+    return parts.join(' · ');
+}
+
+async function loadCheckpointList() {
+    var sel = document.getElementById('train_model_name');
+    var listEl = document.getElementById('ckpt_list');
+    if (!sel || !listEl) return;
+    var modelName = sel.value;
+    if (!modelName) { listEl.innerHTML = ''; return; }
+    try {
+        var resp = await fetch('/checkpoints/' + encodeURIComponent(modelName));
+        var data = await resp.json();
+        if (!data.checkpoints || data.checkpoints.length === 0) {
+            listEl.innerHTML = '<p style="color:#8A857A;font-size:0.85em;">' + t('ckpt_none') + '</p>';
+            return;
+        }
+        var rows = data.checkpoints.slice().reverse().map(function(c) {
+            var kindClass = c.kind === 'error' ? 'color:#C43D3D;' : (c.kind === 'auto' ? 'color:#1A7F5A;' : 'color:#B45309;');
+            return '<tr>' +
+                '<td>' + c.iteration + '</td>' +
+                '<td style="' + kindClass + 'font-weight:600;">' + t('ckpt_kind_' + (c.kind || 'auto')) + '</td>' +
+                '<td>' + (c.loss !== null && c.loss !== undefined ? Number(c.loss).toFixed(3) : '—') + '</td>' +
+                '<td>' + (ckptDate(c.timestamp) || '—') + '</td>' +
+                '<td>' + c.size_mb + ' MB</td>' +
+            '</tr>';
+        }).join('');
+        listEl.innerHTML = '<table><thead><tr>' +
+            '<th>' + t('word_iteration') + '</th>' +
+            '<th>' + t('ckpt_col_kind') + '</th>' +
+            '<th>Loss</th>' +
+            '<th>' + t('ckpt_col_when') + '</th>' +
+            '<th>' + t('ckpt_col_size') + '</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    } catch (e) {
+        listEl.innerHTML = '<p style="color:#C43D3D;font-size:0.85em;">' + e.message + '</p>';
+    }
+}
+
 async function loadCheckpoints() {
     var modelName = document.getElementById('compare_model_name').value;
     if (!modelName) return;
-    var resp = await fetch('/checkpoints/' + modelName);
+    var resp = await fetch('/checkpoints/' + encodeURIComponent(modelName));
     var data = await resp.json();
     ['checkpoint_a', 'checkpoint_b'].forEach(function(id) {
         var sel = document.getElementById(id);
-        sel.innerHTML = data.checkpoints.map(function(c) { return '<option value="' + c.iteration + '">' + t('word_iteration') + ' ' + c.iteration + ' (' + c.size_mb + ' MB)</option>'; }).join('');
+        sel.innerHTML = data.checkpoints.map(function(c) { return '<option value="' + c.iteration + '">' + ckptLabel(c) + '</option>'; }).join('');
     });
 }
 
@@ -1320,8 +1376,24 @@ var TRANSLATIONS = {
         autopilot_state_stopped: 'Остановлен',
         autopilot_time_budget: 'Лимит времени (минут):',
         autopilot_time_hint: '0 = без лимита. LLM подстроит кол-во итераций под время.',
+        autopilot_opt_custom: 'Custom endpoint (свой API)',
+        autopilot_api_key_optional: 'API ключ (если требуется):',
+        autopilot_enter_endpoint: 'Укажите endpoint вашего API, например: https://my-api.example.com/v1',
+        autopilot_localhost_warning: 'Внимание! Вы указали локальный адрес (localhost / 127.0.0.1), но страница открыта не с вашего компьютера — похоже, сервер работает в Google Colab или в облаке.\n\nОблачный сервер НЕ УВИДИТ LM Studio/Ollama на вашем ПК: для него localhost — это он сам.\n\nВарианты:\n• Запустите AZR локально на своём ПК (start.bat)\n• Или пробросьте LM Studio наружу туннелем (ngrok http 1234) и вставьте ссылку туннеля\n• Или выберите облачного провайдера (Google AI Studio / Groq / Ollama Cloud)\n\nВсё равно продолжить?',
+        autopilot_help_custom: '<b>Свой OpenAI-совместимый API — на все случаи жизни:</b><br><br>Подойдёт любой сервис с API формата OpenAI (<code>/v1/chat/completions</code>): OpenRouter, Together, DeepSeek, vLLM, ваш прокси и т.д.<br><br>1. В поле <b>Endpoint</b> вставьте адрес API, например <code>https://openrouter.ai/api/v1</code><br>2. В поле <b>API ключ</b> — ключ сервиса (если требуется)<br>3. В поле <b>Модель</b> — точное имя модели у этого сервиса<br><br>💡 Если вставите просто адрес хоста (например <code>http://127.0.0.1:1234</code>) — путь <code>/v1</code> добавится автоматически.<br><br>⚠️ Локальные адреса (localhost, 127.0.0.1) работают только если сервер AZR запущен на этом же компьютере. Из Google Colab ваш ПК не виден — нужен туннель (например <code>ngrok http 1234</code>).',
+        ckpt_title: 'Чекпоинты — сохранённые версии модели',
+        ckpt_explain: 'Чекпоинт — это автосохранение модели во время обучения. Он создаётся сам: каждые «Save Every» итераций (поле выше), при нажатии «Остановить» и при ошибке. Хранятся последние 7 автосохранений. Любые два чекпоинта можно сравнить на вкладке «Сравнение» — увидите, как модель умнела.',
+        ckpt_refresh: 'Обновить список',
+        ckpt_none: 'Пока нет чекпоинтов. Они появятся во время обучения — каждые «Save Every» итераций.',
+        ckpt_col_kind: 'Тип',
+        ckpt_col_when: 'Когда',
+        ckpt_col_size: 'Размер',
+        ckpt_kind_auto: 'авто',
+        ckpt_kind_paused: 'пауза',
+        ckpt_kind_interrupted: 'прервано',
+        ckpt_kind_error: 'ошибка',
         bench_title: 'Целевые бенчмарки',
-        bench_desc: 'Все показатели — в баллах от 0 до 100. Впишите нужный балл ниже, остальные цели подберутся сами (их можно поправить вручную). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем.',
+        bench_desc: 'Все показатели — в баллах от 0 до 100. Впишите нужный балл ниже, остальные цели подберутся сами (их можно поправить вручную). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем. Важно: это внутренняя шкала AZR для маленьких моделей — с баллами больших нейросетей (Opus, Sonnet) она не сравнивается.',
         bench_auto_label: 'Сколько баллов нужно?',
         bench_auto_btn: 'Подобрать цели',
         bench_auto_hint: '50 — нормально, 65 — хорошо, 80 — отлично',
@@ -1375,7 +1447,7 @@ var TRANSLATIONS = {
         autopilot_help_ollama_cloud: '<b>Ollama Cloud — большие облачные модели (GPT-OSS, GLM, Qwen):</b><br><br>1. Установите Ollama локально с <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> и войдите через <code>ollama signin</code> (или зарегистрируйтесь на сайте)<br>2. Откройте <a href="https://ollama.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/settings/keys</a><br>3. Нажмите <b>«Create new key»</b> и скопируйте ключ<br>4. Вставьте его в поле <b>API ключ</b> выше<br>5. В поле <b>Модель</b> укажите название cloud-модели, например:<br>&nbsp;&nbsp;• <code>gpt-oss:120b</code> — открытая GPT-OSS 120B (рекомендуем для tool calling)<br>&nbsp;&nbsp;• <code>gpt-oss:20b</code> — поменьше и пошустрее<br>&nbsp;&nbsp;• <code>qwen3-coder:480b</code> — для кода<br>&nbsp;&nbsp;• <code>glm-4.6:cloud</code> — если включён доступ<br>&nbsp;&nbsp;• Список всех cloud-моделей: <a href="https://ollama.com/search?c=cloud" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/search?c=cloud</a><br><br>💡 Cloud-модели запускаются на серверах Ollama — работают одинаково и с локального ПК, и с Google Colab. Удобно когда у Gemini кончились лимиты.',
         autopilot_help_openai: '<b>OpenAI (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://platform.openai.com/signup" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/signup</a> и создайте аккаунт (или войдите через Google)<br>2. Откройте <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Нажмите кнопку <b>«+ Create new secret key»</b><br>4. Скопируйте ключ (начинается с <code>sk-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота (GPT-4o). $5 хватит на сотни запусков.',
         autopilot_help_anthropic: '<b>Anthropic Claude (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://console.anthropic.com/login" target="_blank" style="color:#C15F3C;text-decoration:underline;">console.anthropic.com</a> и создайте аккаунт<br>2. Откройте <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">Settings → API Keys</a><br>3. Нажмите <b>«Create Key»</b><br>4. Скопируйте ключ (начинается с <code>sk-ant-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота. $5 хватит на сотни запусков.',
-        autopilot_help_openai_compatible: '<b>Локальная LLM (бесплатно, но грузит ваш ПК):</b><br><br>🔑 <b>API ключ не нужен</b> — всё работает локально на вашем компьютере.<br><br><b>Вариант 1 — Ollama (проще):</b><br>1. Скачайте и установите с <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Откройте терминал (командную строку) и выполните:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — скачает модель (~4 ГБ)<br>3. Ollama запустится автоматически после установки<br>4. Endpoint: <code>http://localhost:11434/v1</code> (уже заполнен)<br>5. В поле Модель напишите: <code>llama3</code><br><br><b>Вариант 2 — LM Studio (с интерфейсом):</b><br>1. Скачайте с <a href="https://lmstudio.ai" target="_blank" style="color:#C15F3C;text-decoration:underline;">lmstudio.ai</a> и установите<br>2. В программе найдите и скачайте модель (например llama3)<br>3. Перейдите во вкладку <b>«Local Server»</b> (иконка ↔ слева) → нажмите <b>«Start Server»</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. В поле Модель укажите название загруженной модели<br><br>⚠️ <b>Требует мощный ПК</b> (16GB+ RAM, лучше с видеокартой). LLM работает одновременно с обучением — может быть медленно. Рекомендуем Google Colab если ПК слабый.',
+        autopilot_help_openai_compatible: '<b>Локальная LLM (бесплатно, но грузит ваш ПК):</b><br><br>🔑 <b>API ключ не нужен</b> — всё работает локально на вашем компьютере.<br><br><b>Вариант 1 — Ollama (проще):</b><br>1. Скачайте и установите с <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Откройте терминал (командную строку) и выполните:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — скачает модель (~4 ГБ)<br>3. Ollama запустится автоматически после установки<br>4. Endpoint: <code>http://localhost:11434/v1</code> (уже заполнен)<br>5. В поле Модель напишите: <code>llama3</code><br><br><b>Вариант 2 — LM Studio (с интерфейсом):</b><br>1. Скачайте с <a href="https://lmstudio.ai" target="_blank" style="color:#C15F3C;text-decoration:underline;">lmstudio.ai</a> и установите<br>2. В программе найдите и скачайте модель (например llama3)<br>3. Перейдите во вкладку <b>«Local Server»</b> (иконка ↔ слева) → нажмите <b>«Start Server»</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. В поле Модель укажите название загруженной модели<br><br>⚠️ <b>Требует мощный ПК</b> (16GB+ RAM, лучше с видеокартой). LLM работает одновременно с обучением — может быть медленно.<br><br>⚠️ <b>Работает только если сервер AZR запущен на этом же ПК.</b> Из Google Colab локальная LLM не видна (localhost для Colab — это сам Colab). В Colab используйте туннель (<code>ngrok http 1234</code>) или облачного провайдера (Google AI / Groq / Ollama Cloud).',
         btn_attach: '+ Прикрепить', btn_detach: 'Открепить',
         filter_all: 'Все',
         no_datasets: 'Нет датасетов.', no_attached: 'Нет прикреплённых.',
@@ -1530,8 +1602,24 @@ var TRANSLATIONS = {
         autopilot_state_stopped: 'Stopped',
         autopilot_time_budget: 'Time limit (minutes):',
         autopilot_time_hint: '0 = no limit. LLM will adjust iterations to fit the time.',
+        autopilot_opt_custom: 'Custom endpoint (your API)',
+        autopilot_api_key_optional: 'API key (if required):',
+        autopilot_enter_endpoint: 'Enter your API endpoint, e.g.: https://my-api.example.com/v1',
+        autopilot_localhost_warning: 'Warning! You entered a local address (localhost / 127.0.0.1), but this page is not opened from your own computer — the server seems to run in Google Colab or the cloud.\n\nA cloud server CANNOT see LM Studio/Ollama on your PC: for it, localhost means itself.\n\nOptions:\n• Run AZR locally on your PC (start.bat)\n• Or expose LM Studio via a tunnel (ngrok http 1234) and paste the tunnel URL\n• Or pick a cloud provider (Google AI Studio / Groq / Ollama Cloud)\n\nContinue anyway?',
+        autopilot_help_custom: '<b>Your own OpenAI-compatible API — covers every case:</b><br><br>Works with any service that speaks the OpenAI format (<code>/v1/chat/completions</code>): OpenRouter, Together, DeepSeek, vLLM, your own proxy, etc.<br><br>1. Paste the API address into <b>Endpoint</b>, e.g. <code>https://openrouter.ai/api/v1</code><br>2. Put the service key into <b>API key</b> (if required)<br>3. Put the exact model name into <b>Model</b><br><br>💡 If you paste just a host address (e.g. <code>http://127.0.0.1:1234</code>) the <code>/v1</code> path is added automatically.<br><br>⚠️ Local addresses (localhost, 127.0.0.1) only work when the AZR server runs on the same computer. Google Colab cannot see your PC — use a tunnel (e.g. <code>ngrok http 1234</code>).',
+        ckpt_title: 'Checkpoints — saved versions of your model',
+        ckpt_explain: 'A checkpoint is an autosave of the model during training. It is created automatically: every "Save Every" iterations (field above), when you press "Stop", and on errors. The last 7 autosaves are kept. Compare any two checkpoints on the "Compare" tab to see how the model got smarter.',
+        ckpt_refresh: 'Refresh list',
+        ckpt_none: 'No checkpoints yet. They will appear during training — every "Save Every" iterations.',
+        ckpt_col_kind: 'Type',
+        ckpt_col_when: 'When',
+        ckpt_col_size: 'Size',
+        ckpt_kind_auto: 'auto',
+        ckpt_kind_paused: 'paused',
+        ckpt_kind_interrupted: 'interrupted',
+        ckpt_kind_error: 'error',
         bench_title: 'Target benchmarks',
-        bench_desc: 'All metrics use points from 0 to 100. Enter the score you need below and the other targets will be picked automatically (you can adjust them manually). The autopilot must reach the targets and prove it with numbers — or honestly report failure. Empty target = not checked.',
+        bench_desc: 'All metrics use points from 0 to 100. Enter the score you need below and the other targets will be picked automatically (you can adjust them manually). The autopilot must reach the targets and prove it with numbers — or honestly report failure. Empty target = not checked. Note: this is AZR\'s internal scale for small models — it is not comparable to benchmark scores of large models (Opus, Sonnet).',
         bench_auto_label: 'How many points do you need?',
         bench_auto_btn: 'Pick targets',
         bench_auto_hint: '50 — okay, 65 — good, 80 — excellent',
@@ -1585,7 +1673,7 @@ var TRANSLATIONS = {
         autopilot_help_ollama_cloud: '<b>Ollama Cloud — large cloud models (GPT-OSS, GLM, Qwen):</b><br><br>1. Install Ollama locally from <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> and run <code>ollama signin</code> (or sign up on the website)<br>2. Open <a href="https://ollama.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/settings/keys</a><br>3. Click <b>"Create new key"</b> and copy the key<br>4. Paste it into the <b>API Key</b> field above<br>5. In the <b>Model</b> field enter the cloud model name, for example:<br>&nbsp;&nbsp;• <code>gpt-oss:120b</code> — open GPT-OSS 120B (recommended for tool calling)<br>&nbsp;&nbsp;• <code>gpt-oss:20b</code> — smaller and faster<br>&nbsp;&nbsp;• <code>qwen3-coder:480b</code> — for code<br>&nbsp;&nbsp;• <code>glm-4.6:cloud</code> — if access is enabled<br>&nbsp;&nbsp;• Full list: <a href="https://ollama.com/search?c=cloud" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/search?c=cloud</a><br><br>💡 Cloud models run on Ollama\'s servers — works the same from local PC and Google Colab. Handy when Gemini quota runs out.',
         autopilot_help_openai: '<b>OpenAI (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://platform.openai.com/signup" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/signup</a> and create an account (or sign in with Google)<br>2. Open <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Click the <b>"+ Create new secret key"</b> button<br>4. Copy the key (starts with <code>sk-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run (GPT-4o). $5 is enough for hundreds of runs.',
         autopilot_help_anthropic: '<b>Anthropic Claude (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://console.anthropic.com/login" target="_blank" style="color:#C15F3C;text-decoration:underline;">console.anthropic.com</a> and create an account<br>2. Open <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">Settings → API Keys</a><br>3. Click <b>"Create Key"</b><br>4. Copy the key (starts with <code>sk-ant-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run. $5 is enough for hundreds of runs.',
-        autopilot_help_openai_compatible: '<b>Local LLM (free, but uses your PC resources):</b><br><br>🔑 <b>No API key needed</b> — everything runs locally on your computer.<br><br><b>Option 1 — Ollama (easier):</b><br>1. Download and install from <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Open a terminal and run:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — downloads the model (~4 GB)<br>3. Ollama starts automatically after installation<br>4. Endpoint: <code>http://localhost:11434/v1</code> (already filled in)<br>5. In the Model field type: <code>llama3</code><br><br><b>Option 2 — LM Studio (has a GUI):</b><br>1. Download from <a href="https://lmstudio.ai" target="_blank" style="color:#C15F3C;text-decoration:underline;">lmstudio.ai</a> and install<br>2. Search and download a model in the app (e.g. llama3)<br>3. Go to the <b>"Local Server"</b> tab (↔ icon on the left) → click <b>"Start Server"</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. In the Model field enter the name of the downloaded model<br><br>⚠️ <b>Requires a powerful PC</b> (16GB+ RAM, GPU recommended). LLM runs alongside model training — may be slow. We recommend Google Colab if your PC is not powerful enough.',
+        autopilot_help_openai_compatible: '<b>Local LLM (free, but uses your PC resources):</b><br><br>🔑 <b>No API key needed</b> — everything runs locally on your computer.<br><br><b>Option 1 — Ollama (easier):</b><br>1. Download and install from <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Open a terminal and run:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — downloads the model (~4 GB)<br>3. Ollama starts automatically after installation<br>4. Endpoint: <code>http://localhost:11434/v1</code> (already filled in)<br>5. In the Model field type: <code>llama3</code><br><br><b>Option 2 — LM Studio (has a GUI):</b><br>1. Download from <a href="https://lmstudio.ai" target="_blank" style="color:#C15F3C;text-decoration:underline;">lmstudio.ai</a> and install<br>2. Search and download a model in the app (e.g. llama3)<br>3. Go to the <b>"Local Server"</b> tab (↔ icon on the left) → click <b>"Start Server"</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. In the Model field enter the name of the downloaded model<br><br>⚠️ <b>Requires a powerful PC</b> (16GB+ RAM, GPU recommended). LLM runs alongside model training — may be slow.<br><br>⚠️ <b>Only works when the AZR server runs on this same PC.</b> Google Colab cannot see your local LLM (localhost in Colab means Colab itself). From Colab use a tunnel (<code>ngrok http 1234</code>) or a cloud provider (Google AI / Groq / Ollama Cloud).',
         btn_attach: '+ Attach', btn_detach: 'Detach',
         filter_all: 'All',
         no_datasets: 'No datasets.', no_attached: 'No attached datasets.',
@@ -1616,20 +1704,37 @@ var autopilotLogSince = 0;
 
 function updateProviderFields() {
     var p = document.getElementById('ap_provider').value;
-    document.getElementById('ap_endpoint_group').style.display = (p === 'openai_compatible') ? 'block' : 'none';
-    document.getElementById('ap_api_key_group').style.display = (p === 'openai_compatible') ? 'none' : 'block';
+    var needsEndpoint = (p === 'openai_compatible' || p === 'custom');
+    document.getElementById('ap_endpoint_group').style.display = needsEndpoint ? 'block' : 'none';
+    // Ключ показываем всегда: LM Studio и прокси тоже могут требовать ключ.
+    // Для локальных/кастомных он необязателен — меняем подпись.
+    document.getElementById('ap_api_key_group').style.display = 'block';
+    var keyLabel = document.querySelector('#ap_api_key_group label');
+    if (keyLabel) keyLabel.textContent = needsEndpoint ? t('autopilot_api_key_optional') : t('autopilot_api_key');
     var m = document.getElementById('ap_model');
     if (p === 'openai') m.placeholder = 'gpt-4o';
     else if (p === 'anthropic') m.placeholder = 'claude-sonnet-4-20250514';
     else if (p === 'google_ai') m.placeholder = 'gemini-2.5-flash';
     else if (p === 'groq') m.placeholder = 'llama-3.3-70b-versatile';
     else if (p === 'ollama_cloud') m.placeholder = 'gpt-oss:120b';
+    else if (p === 'custom') m.placeholder = 'model-name';
     else m.placeholder = 'llama3';
     var ep = document.getElementById('ap_endpoint');
-    ep.placeholder = 'http://localhost:11434/v1';
+    ep.placeholder = (p === 'custom') ? 'https://my-api.example.com/v1' : 'http://localhost:1234/v1';
     var help = document.getElementById('ap_provider_help');
     help.innerHTML = t('autopilot_help_' + p);
     help.style.display = 'block';
+}
+
+// Локальный адрес (localhost/127.0.0.1) существует только на ТОМ компьютере,
+// где открыта страница. Если сервер крутится в Google Colab — он не увидит
+// LM Studio на вашем ПК. Предупреждаем заранее.
+function isLocalEndpointUnreachable(endpoint) {
+    if (!endpoint) return false;
+    var isLocalEp = /(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(endpoint);
+    var pageHost = window.location.hostname;
+    var pageIsLocal = (pageHost === 'localhost' || pageHost === '127.0.0.1' || pageHost === '0.0.0.0' || pageHost === '');
+    return isLocalEp && !pageIsLocal;
 }
 document.addEventListener('DOMContentLoaded', function() { updateProviderFields(); });
 
@@ -1644,10 +1749,11 @@ function startAutopilot() {
     if (!goal) { alert(t('autopilot_enter_goal')); return; }
     var apiKey = document.getElementById('ap_api_key').value.trim();
     var provider = document.getElementById('ap_provider').value;
-    if (provider !== 'openai_compatible' && !apiKey) { alert(t('autopilot_enter_key')); return; }
+    var keyOptional = (provider === 'openai_compatible' || provider === 'custom');
+    if (!keyOptional && !apiKey) { alert(t('autopilot_enter_key')); return; }
 
     var sendProvider = provider;
-    var sendEndpoint = document.getElementById('ap_endpoint').value || null;
+    var sendEndpoint = (document.getElementById('ap_endpoint').value || '').trim() || null;
     var sendModel = document.getElementById('ap_model').value || null;
     if (provider === 'google_ai') {
         sendProvider = 'openai_compatible';
@@ -1661,6 +1767,14 @@ function startAutopilot() {
         sendProvider = 'openai_compatible';
         sendEndpoint = 'https://ollama.com/v1';
         if (!sendModel) sendModel = 'gpt-oss:120b';
+    } else if (provider === 'custom') {
+        sendProvider = 'openai_compatible';
+        if (!sendEndpoint) { alert(t('autopilot_enter_endpoint')); return; }
+    }
+
+    // Локальный endpoint при работе через Colab/туннель не будет виден серверу
+    if ((provider === 'openai_compatible' || provider === 'custom') && isLocalEndpointUnreachable(sendEndpoint)) {
+        if (!confirm(t('autopilot_localhost_warning'))) return;
     }
 
     var timeBudget = parseInt(document.getElementById('ap_time_budget').value) || 0;

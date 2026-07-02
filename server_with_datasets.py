@@ -797,39 +797,69 @@ async def compare_iterations(iter_a: int, iter_b: int):
 
 @app.get("/checkpoints/{model_name}")
 async def list_checkpoints(model_name: str):
+    """Список чекпоинтов с метаданными из manifest.json (тип, loss, дата),
+    чтобы в UI их можно было отличить друг от друга."""
     checkpoint_dir = CHECKPOINTS_DIR / model_name
     if not checkpoint_dir.exists():
         return {"checkpoints": []}
 
-    checkpoints = []
-    for f in sorted(checkpoint_dir.glob("model_iter_*.pt")):
+    manifest = {}
+    manifest_path = checkpoint_dir / "manifest.json"
+    if manifest_path.exists():
         try:
-            # Извлекаем номер итерации из имени файла
-            iter_num = int(f.stem.split("_")[-1])
+            with open(manifest_path, encoding="utf-8") as f:
+                manifest = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            manifest = {}
+
+    checkpoints = []
+    for pattern, default_kind in [("model_iter_*.pt", "auto"),
+                                  ("model_paused_*.pt", "paused"),
+                                  ("model_interrupted_*.pt", "interrupted"),
+                                  ("model_error_*.pt", "error")]:
+        for f in checkpoint_dir.glob(pattern):
+            try:
+                iter_num = int(f.stem.split("_")[-1])
+            except (ValueError, IndexError):
+                continue
+            meta = manifest.get(f.name, {})
             checkpoints.append({
-                "iteration": iter_num,
+                "iteration": meta.get("iteration", iter_num),
+                "kind": meta.get("kind", default_kind),
+                "loss": meta.get("loss"),
+                "val_loss": meta.get("val_loss"),
+                "reward": meta.get("reward"),
                 "filename": f.name,
                 "size_mb": round(f.stat().st_size / (1024 * 1024), 2),
-                "timestamp": datetime.fromtimestamp(f.stat().st_mtime).isoformat()
+                "timestamp": meta.get("timestamp",
+                                      datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"))
             })
-        except (ValueError, IndexError):
-            continue
 
-    return {"checkpoints": sorted(checkpoints, key=lambda x: x["iteration"])}
+    return {"checkpoints": sorted(checkpoints, key=lambda x: (x["iteration"], x["timestamp"]))}
+
+
+def _find_checkpoint_file(model_name: str, iteration: int):
+    """Найти файл чекпоинта по номеру итерации среди всех типов
+    (авто, пауза, прерван, ошибка). Обычный чекпоинт в приоритете."""
+    checkpoint_dir = CHECKPOINTS_DIR / model_name
+    for prefix in ["model_iter_", "model_paused_", "model_interrupted_", "model_error_"]:
+        f = checkpoint_dir / f"{prefix}{iteration}.pt"
+        if f.exists():
+            return f
+    return None
 
 
 @app.post("/generate_at_checkpoint")
 async def generate_at_checkpoint(config: GenerateAtCheckpointConfig):
     try:
         model_dir = MODELS_DIR / config.model_name
-        checkpoint_dir = CHECKPOINTS_DIR / config.model_name
 
         with open(model_dir / "config.json") as f:
             model_config = json.load(f)
 
-        # Ищем чекпоинт
-        checkpoint_file = checkpoint_dir / f"model_iter_{config.checkpoint_iteration}.pt"
-        if not checkpoint_file.exists():
+        # Ищем чекпоинт (любого типа)
+        checkpoint_file = _find_checkpoint_file(config.model_name, config.checkpoint_iteration)
+        if not checkpoint_file:
             raise HTTPException(status_code=404, detail=f"Checkpoint at iteration {config.checkpoint_iteration} not found")
 
         model = CustomTransformerLM(
@@ -896,8 +926,8 @@ async def compare_generations(config: CompareConfig):
         results = []
 
         for iteration in config.iterations[:5]:  # Макс 5
-            checkpoint_file = checkpoint_dir / f"model_iter_{iteration}.pt"
-            if not checkpoint_file.exists():
+            checkpoint_file = _find_checkpoint_file(config.model_name, iteration)
+            if not checkpoint_file:
                 results.append({
                     "iteration": iteration,
                     "error": "Checkpoint not found"

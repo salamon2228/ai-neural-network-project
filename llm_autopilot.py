@@ -401,12 +401,17 @@ class LLMProvider:
             self.endpoint = "https://api.openai.com/v1/chat/completions"
             self.model = model or "gpt-4o"
         elif provider == "openai_compatible":
-            self.endpoint = (endpoint or "http://localhost:11434/v1") + "/chat/completions"
-            if not self.endpoint.startswith("http"):
-                self.endpoint = "http://" + self.endpoint
-            # Ensure /chat/completions suffix
-            if "/chat/completions" not in self.endpoint:
-                self.endpoint = self.endpoint.rstrip("/") + "/chat/completions"
+            ep = (endpoint or "http://localhost:11434/v1").strip().rstrip("/")
+            if not ep.startswith("http"):
+                ep = "http://" + ep
+            # Пользователи часто вставляют голый адрес (http://127.0.0.1:1234) —
+            # OpenAI-совместимые серверы (LM Studio, Ollama) ждут путь /v1
+            parsed = urllib.parse.urlparse(ep)
+            if parsed.path in ("", "/"):
+                ep += "/v1"
+            if "/chat/completions" not in ep:
+                ep += "/chat/completions"
+            self.endpoint = ep
             self.model = model or "llama3"
         else:
             raise ValueError(f"Unknown provider: {provider}")
