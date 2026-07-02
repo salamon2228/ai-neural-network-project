@@ -143,33 +143,40 @@
         .bench-head { padding: 18px 20px 4px; }
         .bench-title { font-size: 1.25em; color: var(--ink); }
         .bench-sub { color: var(--muted); font-size: 0.85em; line-height: 1.55; margin: 6px 0 10px; max-width: 720px; }
-        .bench-table { width: 100%; border-collapse: collapse; margin: 0; }
-        .bench-table thead th { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint); font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-strong); background: var(--panel-soft); }
-        .bench-table td { padding: 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
-        .bench-table tbody tr:last-child td { border-bottom: none; }
-        .bench-table tbody tr:hover { background: rgba(217,119,87,0.03); }
-        .bench-th-metric { width: 38%; }
-        .bench-metric .bench-name { display: block; font-family: var(--serif); font-size: 1.02em; font-weight: 600; color: var(--ink); }
-        .bench-metric .bench-hint { display: block; font-size: 0.76em; color: var(--faint); margin-top: 3px; line-height: 1.45; max-width: 420px; }
-        .bench-target { display: flex; align-items: center; gap: 6px; }
-        .bench-target input { width: 88px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel); color: var(--ink); font-size: 0.95em; text-align: center; font-variant-numeric: tabular-nums; transition: border-color 0.3s, box-shadow 0.3s; }
-        .bench-target input:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(217,119,87,0.15); }
-        .bench-dir { color: var(--faint); font-size: 0.95em; }
-        .bench-unit { color: var(--faint); font-size: 0.85em; }
-        .bench-val { font-variant-numeric: tabular-nums; font-size: 1em; color: var(--muted); }
-        .bench-result { color: var(--ink); font-weight: 600; }
-        .bench-chip { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72em; font-weight: 600; white-space: nowrap; }
-        .bench-chip-pending { background: var(--line-soft); color: var(--faint); }
-        .bench-chip-pass { background: rgba(26,127,90,0.14); color: var(--green); }
-        .bench-chip-fail { background: rgba(196,61,61,0.12); color: var(--red); }
-        .bench-model-line { padding: 10px 20px 0; color: var(--faint); font-size: 0.85em; }
+        .bench-wrap { max-width: 760px; margin: 0 auto; padding: 4px 20px 10px; overflow-x: auto; }
+        .bench-model-title { font-family: var(--serif); font-size: 1.9em; font-weight: 700; text-align: center; margin: 14px 0 18px; color: var(--ink); letter-spacing: -0.01em; }
+        .bench-table2 { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 560px; }
+        .bench-table2 th, .bench-table2 td { padding: 16px 14px; text-align: center; vertical-align: middle; }
+        .bench-table2 thead th { border-bottom: 0; text-transform: none; letter-spacing: normal; }
+        .bench-table2 tbody td { border-top: 1px solid #E7E3D8; }
+        .bench-table2 .b-lblh, .bench-table2 .b-lbl { text-align: left; width: 34%; }
+        .b-lbl .name { display: block; font-weight: 700; font-size: 0.95em; color: var(--ink); line-height: 1.3; }
+        .b-lbl .sub { display: block; font-size: 0.72em; font-weight: 500; color: var(--faint); margin-top: 3px; line-height: 1.35; }
+        .b-col-name { display: block; font-family: var(--serif); font-weight: 700; font-size: 1.05em; color: var(--ink); }
+        .b-col-sub { display: block; font-size: 0.68em; font-weight: 500; color: var(--faint); margin-top: 2px; }
+        .b-val { display: block; font-weight: 700; font-size: 1.15em; color: var(--ink); font-variant-numeric: tabular-nums; }
+        .b-val-ref { color: #4A4842; }
+        .b-cap { display: block; font-size: 0.66em; font-weight: 600; color: var(--faint); margin-top: 3px; }
+        .b-cap.pass { color: var(--green); }
+        .b-cap.fail { color: var(--red); }
+        .b-hero { background: rgba(217,119,87,0.10); border-left: 1.5px solid #D97757; border-right: 1.5px solid #D97757; }
+        .bench-table2 thead .b-hero { border-top: 1.5px solid #D97757; border-radius: 14px 14px 0 0; }
+        .bench-table2 tbody tr:last-child .b-hero { border-bottom: 1.5px solid #D97757; border-radius: 0 0 14px 14px; }
+        .b-ref { background: #ECEAE1; }
+        .bench-table2 thead .b-ref { border-radius: 14px 14px 0 0; }
+        .bench-table2 tbody tr:last-child .b-ref { border-radius: 0 0 14px 14px; }
+        .b-target { display: inline-flex; align-items: center; gap: 4px; }
+        .b-target input { width: 74px; padding: 8px 6px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); color: var(--ink); font-size: 1.05em; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; transition: border-color 0.3s, box-shadow 0.3s; }
+        .b-target input:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(217,119,87,0.15); }
+        .b-target input::placeholder { font-weight: 500; }
+        .b-unit { color: var(--faint); font-size: 0.85em; font-weight: 600; }
         .bench-card .form-group, .bench-card > div[style*="display:flex"] { padding-left: 20px; padding-right: 20px; }
         .bench-card > div[style*="display:flex"] { padding-bottom: 18px; }
         @media (max-width: 768px) {
             .compare-grid { grid-template-columns: 1fr; }
             .grid-3 { grid-template-columns: 1fr; }
-            .bench-metric .bench-hint { display: none; }
-            .bench-table thead th, .bench-table td { padding: 9px 8px; }
+            .bench-table2 th, .bench-table2 td { padding: 10px 8px; }
+            .b-lbl .sub { display: none; }
         }
     </style>
 </head>
@@ -541,80 +548,57 @@
                     <h3 class="bench-title" data-i18n="bench_title">Целевые бенчмарки</h3>
                     <p class="bench-sub" data-i18n="bench_desc">Впишите цели — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки Baseline и Результат заполняются автоматически по ходу обучения.</p>
                 </div>
-                <table class="bench-table">
-                    <thead>
-                        <tr>
-                            <th class="bench-th-metric" data-i18n="bench_col_metric">Метрика</th>
-                            <th data-i18n="bench_col_target">Цель</th>
-                            <th data-i18n="bench_col_baseline">До обучения</th>
-                            <th data-i18n="bench_col_result">Результат</th>
-                            <th data-i18n="bench_col_status">Статус</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="bench-metric">
-                                <span class="bench-name" data-i18n="bench_m_overall">Общий балл качества</span>
-                                <span class="bench-hint" data-i18n="bench_m_overall_hint">0–1, выше = лучше. 0.3 — плохо, 0.5 — нормально, 0.7 — хорошо, 0.85 — отлично.</span>
-                            </td>
-                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_target_score" min="0" max="1" step="0.05" placeholder="0.65"></div></td>
-                            <td class="bench-val" id="ap_base_overall">—</td>
-                            <td class="bench-val bench-result" id="ap_res_overall">—</td>
-                            <td><span class="bench-chip bench-chip-pending" id="ap_st_overall">—</span></td>
-                        </tr>
-                        <tr>
-                            <td class="bench-metric">
-                                <span class="bench-name" data-i18n="bench_m_improve">Улучшение после обучения</span>
-                                <span class="bench-hint" data-i18n="bench_m_improve_hint">Насколько % общий балл должен вырасти относительно необученной модели.</span>
-                            </td>
-                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20"><span class="bench-unit">%</span></div></td>
-                            <td class="bench-val">0%</td>
-                            <td class="bench-val bench-result" id="ap_res_improvement">—</td>
-                            <td><span class="bench-chip bench-chip-pending" id="ap_st_improvement">—</span></td>
-                        </tr>
-                        <tr>
-                            <td class="bench-metric">
-                                <span class="bench-name" data-i18n="bench_m_unk">Неизвестные слова &lt;UNK&gt;</span>
-                                <span class="bench-hint" data-i18n="bench_m_unk_hint">Доля «мусорных» токенов в тексте. 0–1, ниже = лучше. Хорошая модель: меньше 0.1.</span>
-                            </td>
-                            <td><div class="bench-target"><span class="bench-dir">≤</span><input type="number" id="ap_max_unk" min="0" max="1" step="0.05" placeholder="0.10"></div></td>
-                            <td class="bench-val" id="ap_base_unk">—</td>
-                            <td class="bench-val bench-result" id="ap_res_unk">—</td>
-                            <td><span class="bench-chip bench-chip-pending" id="ap_st_unk">—</span></td>
-                        </tr>
-                        <tr>
-                            <td class="bench-metric">
-                                <span class="bench-name" data-i18n="bench_m_rep">Повторяемость</span>
-                                <span class="bench-hint" data-i18n="bench_m_rep_hint">Насколько модель зацикливается на одних словах. 0–1, ниже = лучше. Хорошо: меньше 0.5.</span>
-                            </td>
-                            <td><div class="bench-target"><span class="bench-dir">≤</span><input type="number" id="ap_max_rep" min="0" max="1" step="0.05" placeholder="0.50"></div></td>
-                            <td class="bench-val" id="ap_base_rep">—</td>
-                            <td class="bench-val bench-result" id="ap_res_rep">—</td>
-                            <td><span class="bench-chip bench-chip-pending" id="ap_st_rep">—</span></td>
-                        </tr>
-                        <tr>
-                            <td class="bench-metric">
-                                <span class="bench-name" data-i18n="bench_m_vocab">Богатство словаря</span>
-                                <span class="bench-hint" data-i18n="bench_m_vocab_hint">Сколько разных настоящих слов модель использует в тестах. Выше = лучше. Хорошо: 50+.</span>
-                            </td>
-                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_min_vocab" min="0" max="10000" step="10" placeholder="50"></div></td>
-                            <td class="bench-val" id="ap_base_vocab">—</td>
-                            <td class="bench-val bench-result" id="ap_res_vocab">—</td>
-                            <td><span class="bench-chip bench-chip-pending" id="ap_st_vocab">—</span></td>
-                        </tr>
-                        <tr>
-                            <td class="bench-metric">
-                                <span class="bench-name" data-i18n="bench_m_real">Доля настоящих слов</span>
-                                <span class="bench-hint" data-i18n="bench_m_real_hint">Сколько слов в тексте — настоящие, а не обрывки и спецсимволы. 0–1, выше = лучше. Хорошо: 0.7+.</span>
-                            </td>
-                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_min_realwords" min="0" max="1" step="0.05" placeholder="0.70"></div></td>
-                            <td class="bench-val" id="ap_base_real">—</td>
-                            <td class="bench-val bench-result" id="ap_res_real">—</td>
-                            <td><span class="bench-chip bench-chip-pending" id="ap_st_real">—</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-                <p class="bench-model-line" id="ap_bench_model_line" style="display:none;"><span data-i18n="bench_model_label">Модель:</span> <b id="ap_bench_model_name">—</b></p>
+                <div class="bench-wrap">
+                    <div class="bench-model-title" id="ap_bench_title" data-i18n="bench_your_model">Ваша модель</div>
+                    <table class="bench-table2">
+                        <thead>
+                            <tr>
+                                <th class="b-lblh"></th>
+                                <th class="b-hero"><span class="b-col-name" data-i18n="bench_col_result">Результат</span><span class="b-col-sub" data-i18n="bench_col_result_sub">после обучения</span></th>
+                                <th class="b-plain"><span class="b-col-name" data-i18n="bench_col_target">Цель</span><span class="b-col-sub" data-i18n="bench_col_target_sub">впишите число</span></th>
+                                <th class="b-ref"><span class="b-col-name" data-i18n="bench_col_baseline">До обучения</span><span class="b-col-sub" data-i18n="bench_col_ref_sub">для сравнения</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_overall">Качество текста</span><span class="sub" data-i18n="bench_s_overall">общий балл · выше = лучше</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_overall">—</span><span class="b-cap" id="ap_st_overall"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_target_score" min="0" max="100" step="5" placeholder="65"><span class="b-unit">%</span></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_overall">—</span></td>
+                            </tr>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_improve">Прогресс обучения</span><span class="sub" data-i18n="bench_s_improve">рост балла vs старт</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_improvement">—</span><span class="b-cap" id="ap_st_improvement"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20"><span class="b-unit">%</span></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref">0%</span></td>
+                            </tr>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_unk">Чистота текста</span><span class="sub" data-i18n="bench_s_unk">мусорные слова &lt;UNK&gt; · ниже = лучше</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_unk">—</span><span class="b-cap" id="ap_st_unk"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_max_unk" min="0" max="100" step="5" placeholder="10"><span class="b-unit">%</span></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_unk">—</span></td>
+                            </tr>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_rep">Разнообразие</span><span class="sub" data-i18n="bench_s_rep">повторяемость · ниже = лучше</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_rep">—</span><span class="b-cap" id="ap_st_rep"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_max_rep" min="0" max="100" step="5" placeholder="50"><span class="b-unit">%</span></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_rep">—</span></td>
+                            </tr>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_vocab">Словарный запас</span><span class="sub" data-i18n="bench_s_vocab">уникальных слов в тестах</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_vocab">—</span><span class="b-cap" id="ap_st_vocab"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_vocab" min="0" max="10000" step="10" placeholder="50"></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_vocab">—</span></td>
+                            </tr>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_real">Настоящие слова</span><span class="sub" data-i18n="bench_s_real">доля осмысленных слов · выше = лучше</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_real">—</span><span class="b-cap" id="ap_st_real"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_realwords" min="0" max="100" step="5" placeholder="70"><span class="b-unit">%</span></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_real">—</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
                 <div class="form-group" style="margin-top:14px;">
                     <label data-i18n="autopilot_must_include">Модель ДОЛЖНА выдавать:</label>
                     <textarea id="ap_must_include" rows="2" style="width:100%;resize:vertical;"
@@ -795,7 +779,15 @@ async function loadHWRecommendation() {
     try {
         const resp = await fetch('/hardware_recommendation');
         const data = await resp.json();
-        document.getElementById('hw_recommendation').innerHTML = '<div class="alert alert-info">' + t('hw_recommendation') + ': <strong>' + data.preset.toUpperCase() + '</strong> — ' + data.reason + '</div>';
+        // Локализуем причину через reason_key + параметры (сервер шлёт EN-текст только как fallback)
+        var reasonText = data.reason;
+        if (data.reason_key && TRANSLATIONS[currentLang] && TRANSLATIONS[currentLang][data.reason_key]) {
+            reasonText = t(data.reason_key);
+            var params = data.reason_params || {};
+            Object.keys(params).forEach(function(p) { reasonText = reasonText.replace('{' + p + '}', params[p]); });
+        }
+        var presetName = t('preset_' + data.preset);
+        document.getElementById('hw_recommendation').innerHTML = '<div class="alert alert-info">' + t('hw_recommendation') + ': <strong>' + presetName + '</strong> — ' + reasonText + '</div>';
     } catch(e) {}
 }
 
@@ -1062,7 +1054,7 @@ async function loadCheckpoints() {
     var data = await resp.json();
     ['checkpoint_a', 'checkpoint_b'].forEach(function(id) {
         var sel = document.getElementById(id);
-        sel.innerHTML = data.checkpoints.map(function(c) { return '<option value="' + c.iteration + '">Iteration ' + c.iteration + ' (' + c.size_mb + ' MB)</option>'; }).join('');
+        sel.innerHTML = data.checkpoints.map(function(c) { return '<option value="' + c.iteration + '">' + t('word_iteration') + ' ' + c.iteration + ' (' + c.size_mb + ' MB)</option>'; }).join('');
     });
 }
 
@@ -1080,8 +1072,8 @@ async function compareCheckpoints() {
         var data = await resp.json();
         if (data.comparisons && data.comparisons.length >= 2) {
             var a = data.comparisons[0], b = data.comparisons[1];
-            document.getElementById('compare_label_a').textContent = 'Iteration ' + a.iteration;
-            document.getElementById('compare_label_b').textContent = 'Iteration ' + b.iteration;
+            document.getElementById('compare_label_a').textContent = t('word_iteration') + ' ' + a.iteration;
+            document.getElementById('compare_label_b').textContent = t('word_iteration') + ' ' + b.iteration;
             document.getElementById('compare_text_a').textContent = a.text || a.error || 'N/A';
             document.getElementById('compare_text_b').textContent = b.text || b.error || 'N/A';
             document.getElementById('compare_quality_a').textContent = a.quality ? 'Reward: ' + a.quality.total.toFixed(4) : '';
@@ -1315,27 +1307,34 @@ var TRANSLATIONS = {
         autopilot_time_budget: 'Лимит времени (минут):',
         autopilot_time_hint: '0 = без лимита. LLM подстроит кол-во итераций под время.',
         bench_title: 'Целевые бенчмарки',
-        bench_desc: 'Впишите цели — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки «До обучения» и «Результат» заполняются автоматически по ходу обучения.',
-        bench_col_metric: 'Метрика',
+        bench_desc: 'Впишите цели в колонку «Цель» — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки «Результат» и «До обучения» заполняются автоматически по ходу обучения.',
+        bench_your_model: 'Ваша модель',
         bench_col_target: 'Цель',
+        bench_col_target_sub: 'впишите число',
         bench_col_baseline: 'До обучения',
+        bench_col_ref_sub: 'для сравнения',
         bench_col_result: 'Результат',
-        bench_col_status: 'Статус',
-        bench_m_overall: 'Общий балл качества',
-        bench_m_overall_hint: '0–1, выше = лучше. 0.3 — плохо, 0.5 — нормально, 0.7 — хорошо, 0.85 — отлично.',
-        bench_m_improve: 'Улучшение после обучения',
-        bench_m_improve_hint: 'Насколько % общий балл должен вырасти относительно необученной модели.',
-        bench_m_unk: 'Неизвестные слова <UNK>',
-        bench_m_unk_hint: 'Доля «мусорных» токенов в тексте. 0–1, ниже = лучше. Хорошая модель: меньше 0.1.',
-        bench_m_rep: 'Повторяемость',
-        bench_m_rep_hint: 'Насколько модель зацикливается на одних словах. 0–1, ниже = лучше. Хорошо: меньше 0.5.',
-        bench_m_vocab: 'Богатство словаря',
-        bench_m_vocab_hint: 'Сколько разных настоящих слов модель использует в тестах. Выше = лучше. Хорошо: 50+.',
-        bench_m_real: 'Доля настоящих слов',
-        bench_m_real_hint: 'Сколько слов в тексте — настоящие, а не обрывки и спецсимволы. 0–1, выше = лучше. Хорошо: 0.7+.',
-        bench_model_label: 'Модель:',
-        bench_pass: 'Цель достигнута',
-        bench_fail: 'Не достигнута',
+        bench_col_result_sub: 'после обучения',
+        bench_m_overall: 'Качество текста',
+        bench_s_overall: 'общий балл · выше = лучше',
+        bench_m_improve: 'Прогресс обучения',
+        bench_s_improve: 'рост балла vs старт',
+        bench_m_unk: 'Чистота текста',
+        bench_s_unk: 'мусорные слова <UNK> · ниже = лучше',
+        bench_m_rep: 'Разнообразие',
+        bench_s_rep: 'повторяемость · ниже = лучше',
+        bench_m_vocab: 'Словарный запас',
+        bench_s_vocab: 'уникальных слов в тестах',
+        bench_m_real: 'Настоящие слова',
+        bench_s_real: 'доля осмысленных слов · выше = лучше',
+        bench_pass: 'цель достигнута',
+        bench_fail: 'цель не достигнута',
+        word_iteration: 'Итерация',
+        hw_gpu_large: 'GPU {name} ({mem} ГБ) — можно обучать большие модели',
+        hw_gpu_standard: 'GPU {name} ({mem} ГБ) — стандартные модели',
+        hw_gpu_small: 'GPU с {mem} ГБ — только маленькие модели',
+        hw_cpu_standard: '{mem} ГБ RAM, только CPU — стандартные модели (медленно)',
+        hw_cpu_quick: '{mem} ГБ RAM, только CPU — только быстрые тесты',
         autopilot_quality_title: 'Целевое качество (требования к модели)',
         autopilot_quality_desc: 'Автопилот обязан доказать что достиг этих целей — или честно сказать что не смог. Пустые поля = не ограничиваем.',
         autopilot_target_score: 'Минимальный скор (0.0-1.0):',
@@ -1514,27 +1513,34 @@ var TRANSLATIONS = {
         autopilot_time_budget: 'Time limit (minutes):',
         autopilot_time_hint: '0 = no limit. LLM will adjust iterations to fit the time.',
         bench_title: 'Target benchmarks',
-        bench_desc: 'Enter your targets — the autopilot must reach them and prove it with numbers, or honestly report failure. Empty target = not checked. The Baseline and Result columns fill in automatically as training progresses.',
-        bench_col_metric: 'Metric',
+        bench_desc: 'Enter your targets in the "Target" column — the autopilot must reach them and prove it with numbers, or honestly report failure. Empty target = not checked. The Result and Baseline columns fill in automatically as training progresses.',
+        bench_your_model: 'Your model',
         bench_col_target: 'Target',
+        bench_col_target_sub: 'enter a number',
         bench_col_baseline: 'Baseline',
+        bench_col_ref_sub: 'for reference',
         bench_col_result: 'Result',
-        bench_col_status: 'Status',
-        bench_m_overall: 'Overall quality score',
-        bench_m_overall_hint: '0–1, higher = better. 0.3 — bad, 0.5 — okay, 0.7 — good, 0.85 — excellent.',
-        bench_m_improve: 'Improvement after training',
-        bench_m_improve_hint: 'How much (%) the overall score must grow vs the untrained model.',
-        bench_m_unk: 'Unknown words <UNK>',
-        bench_m_unk_hint: 'Share of "garbage" tokens in output. 0–1, lower = better. A good model: below 0.1.',
-        bench_m_rep: 'Repetitiveness',
-        bench_m_rep_hint: 'How much the model loops on the same words. 0–1, lower = better. Good: below 0.5.',
-        bench_m_vocab: 'Vocabulary richness',
-        bench_m_vocab_hint: 'How many distinct real words the model uses in tests. Higher = better. Good: 50+.',
-        bench_m_real: 'Real-word ratio',
-        bench_m_real_hint: 'Share of words that are real words, not fragments or special tokens. 0–1, higher = better. Good: 0.7+.',
-        bench_model_label: 'Model:',
-        bench_pass: 'Target met',
-        bench_fail: 'Not met',
+        bench_col_result_sub: 'after training',
+        bench_m_overall: 'Text quality',
+        bench_s_overall: 'overall score · higher = better',
+        bench_m_improve: 'Training progress',
+        bench_s_improve: 'score growth vs start',
+        bench_m_unk: 'Text cleanliness',
+        bench_s_unk: 'garbage words <UNK> · lower = better',
+        bench_m_rep: 'Diversity',
+        bench_s_rep: 'repetitiveness · lower = better',
+        bench_m_vocab: 'Vocabulary',
+        bench_s_vocab: 'unique words in tests',
+        bench_m_real: 'Real words',
+        bench_s_real: 'share of meaningful words · higher = better',
+        bench_pass: 'target met',
+        bench_fail: 'target not met',
+        word_iteration: 'Iteration',
+        hw_gpu_large: 'GPU {name} ({mem} GB) — can train large models',
+        hw_gpu_standard: 'GPU {name} ({mem} GB) — standard models',
+        hw_gpu_small: 'GPU with {mem} GB — small models only',
+        hw_cpu_standard: '{mem} GB RAM, CPU only — standard models (slow)',
+        hw_cpu_quick: '{mem} GB RAM, CPU only — quick tests only',
         autopilot_quality_title: 'Quality targets (model requirements)',
         autopilot_quality_desc: 'The autopilot must PROVE it hit these targets — or honestly report that it did not. Empty fields = no constraint.',
         autopilot_target_score: 'Minimum score (0.0-1.0):',
@@ -1658,12 +1664,13 @@ function startAutopilot() {
         endpoint: sendEndpoint,
         model: sendModel,
         time_budget: timeBudget,
-        target_score: targetScoreRaw !== '' ? parseFloat(targetScoreRaw) : null,
+        // Таблица работает в процентах (как у Anthropic), бэкенд — в долях 0..1
+        target_score: targetScoreRaw !== '' ? parseFloat(targetScoreRaw) / 100 : null,
         min_improvement_pct: minImprovRaw !== '' ? parseFloat(minImprovRaw) : null,
-        max_unk_ratio: maxUnkRaw !== '' ? parseFloat(maxUnkRaw) : null,
-        max_repetition: maxRepRaw !== '' ? parseFloat(maxRepRaw) : null,
+        max_unk_ratio: maxUnkRaw !== '' ? parseFloat(maxUnkRaw) / 100 : null,
+        max_repetition: maxRepRaw !== '' ? parseFloat(maxRepRaw) / 100 : null,
         min_vocabulary: minVocabRaw !== '' ? parseInt(minVocabRaw) : null,
-        min_real_word_ratio: minRealRaw !== '' ? parseFloat(minRealRaw) : null,
+        min_real_word_ratio: minRealRaw !== '' ? parseFloat(minRealRaw) / 100 : null,
         must_include: mustInclude || null,
         must_avoid: mustAvoid || null,
         custom_prompts: customPrompts
@@ -1720,79 +1727,85 @@ function pollAutopilot() {
     });
 }
 
-// ─── Benchmark target table (Anthropic-style scoreboard) ───
+// ─── Benchmark target table (Anthropic model-card style) ───
 
 function resetBenchTable() {
     ['overall','improvement','unk','rep','vocab','real'].forEach(function(k) {
         var res = document.getElementById('ap_res_' + k);
         if (res) res.textContent = '—';
         var st = document.getElementById('ap_st_' + k);
-        if (st) { st.textContent = '—'; st.className = 'bench-chip bench-chip-pending'; }
+        if (st) { st.textContent = ''; st.className = 'b-cap'; }
     });
     ['overall','unk','rep','vocab','real'].forEach(function(k) {
         var base = document.getElementById('ap_base_' + k);
         if (base) base.textContent = '—';
     });
-    document.getElementById('ap_bench_model_line').style.display = 'none';
+    document.getElementById('ap_bench_title').textContent = t('bench_your_model');
 }
 
-function fmtBenchNum(v, digits) {
+// Доли 0..1 показываем как проценты (63.2%), счётчики — как числа (1618)
+function fmtBenchPct(v) {
     if (v === null || v === undefined) return '—';
     if (typeof v !== 'number') return String(v);
-    return Number.isInteger(v) && digits === 0 ? String(v) : v.toFixed(digits === undefined ? 2 : digits);
+    return (v * 100).toFixed(1).replace(/\.0$/, '') + '%';
+}
+function fmtBenchInt(v) {
+    if (v === null || v === undefined) return '—';
+    return String(Math.round(v));
 }
 
-function setBenchChip(id, passed) {
+function setBenchCap(id, passed) {
     var el = document.getElementById(id);
     if (!el) return;
-    if (passed === null) { el.textContent = '—'; el.className = 'bench-chip bench-chip-pending'; }
-    else if (passed) { el.textContent = '✓ ' + t('bench_pass'); el.className = 'bench-chip bench-chip-pass'; }
-    else { el.textContent = '✗ ' + t('bench_fail'); el.className = 'bench-chip bench-chip-fail'; }
+    if (passed === null) { el.textContent = ''; el.className = 'b-cap'; }
+    else if (passed) { el.textContent = '✓ ' + t('bench_pass'); el.className = 'b-cap pass'; }
+    else { el.textContent = '✗ ' + t('bench_fail'); el.className = 'b-cap fail'; }
 }
 
 function updateBenchTable(sb, modelName) {
     if (!sb) return;
     if (modelName) {
-        document.getElementById('ap_bench_model_line').style.display = 'block';
-        document.getElementById('ap_bench_model_name').textContent = modelName;
+        document.getElementById('ap_bench_title').textContent = modelName;
     }
     var base = sb.baseline ? (sb.baseline.scores || {}) : {};
     var latest = sb.latest ? (sb.latest.scores || {}) : {};
     var baseOverall = sb.baseline ? sb.baseline.overall_score : null;
     var latestOverall = sb.latest ? sb.latest.overall_score : null;
 
-    // Baseline column
-    document.getElementById('ap_base_overall').textContent = fmtBenchNum(baseOverall, 2);
-    document.getElementById('ap_base_unk').textContent = fmtBenchNum(base.unk_ratio, 2);
-    document.getElementById('ap_base_rep').textContent = fmtBenchNum(base.avg_repetition, 2);
-    document.getElementById('ap_base_vocab').textContent = fmtBenchNum(base.vocabulary_diversity, 0);
-    document.getElementById('ap_base_real').textContent = fmtBenchNum(base.real_word_ratio, 2);
+    // Колонка «До обучения»
+    document.getElementById('ap_base_overall').textContent = fmtBenchPct(baseOverall);
+    document.getElementById('ap_base_unk').textContent = fmtBenchPct(base.unk_ratio);
+    document.getElementById('ap_base_rep').textContent = fmtBenchPct(base.avg_repetition);
+    document.getElementById('ap_base_vocab').textContent = fmtBenchInt(base.vocabulary_diversity);
+    document.getElementById('ap_base_real').textContent = fmtBenchPct(base.real_word_ratio);
 
-    // Result column
-    document.getElementById('ap_res_overall').textContent = fmtBenchNum(latestOverall, 2);
+    // Колонка «Результат»
+    document.getElementById('ap_res_overall').textContent = fmtBenchPct(latestOverall);
     document.getElementById('ap_res_improvement').textContent =
         (sb.improvement_pct === null || sb.improvement_pct === undefined) ? '—'
         : ((sb.improvement_pct >= 0 ? '+' : '') + sb.improvement_pct.toFixed(1) + '%');
-    document.getElementById('ap_res_unk').textContent = fmtBenchNum(latest.unk_ratio, 2);
-    document.getElementById('ap_res_rep').textContent = fmtBenchNum(latest.avg_repetition, 2);
-    document.getElementById('ap_res_vocab').textContent = fmtBenchNum(latest.vocabulary_diversity, 0);
-    document.getElementById('ap_res_real').textContent = fmtBenchNum(latest.real_word_ratio, 2);
+    document.getElementById('ap_res_unk').textContent = fmtBenchPct(latest.unk_ratio);
+    document.getElementById('ap_res_rep').textContent = fmtBenchPct(latest.avg_repetition);
+    document.getElementById('ap_res_vocab').textContent = fmtBenchInt(latest.vocabulary_diversity);
+    document.getElementById('ap_res_real').textContent = fmtBenchPct(latest.real_word_ratio);
 
-    // Status chips: only judge once a post-baseline result exists
+    // Подписи ✓/✗ под результатом — только когда есть результат после обучения.
+    // Цели в таблице в процентах, метрики бэкенда — доли 0..1 (кроме словаря и % улучшения).
     var hasResult = sb.latest !== null && sb.latest !== undefined;
-    function judge(id, targetRaw, actual, dirMax) {
+    function judge(id, targetRaw, actual, dirMax, isFraction) {
         if (targetRaw === '' || targetRaw === null || !hasResult || actual === null || actual === undefined) {
-            setBenchChip(id, null); return;
+            setBenchCap(id, null); return;
         }
         var tval = parseFloat(targetRaw);
-        setBenchChip(id, dirMax ? (actual <= tval) : (actual >= tval));
+        if (isFraction) tval = tval / 100;
+        setBenchCap(id, dirMax ? (actual <= tval) : (actual >= tval));
     }
-    judge('ap_st_overall', document.getElementById('ap_target_score').value, latestOverall, false);
-    judge('ap_st_improvement', document.getElementById('ap_min_improvement').value, sb.improvement_pct, false);
-    judge('ap_st_unk', document.getElementById('ap_max_unk').value, latest.unk_ratio, true);
-    judge('ap_st_rep', document.getElementById('ap_max_rep').value, latest.avg_repetition, true);
-    judge('ap_st_vocab', document.getElementById('ap_min_vocab').value, latest.vocabulary_diversity, false);
-    judge('ap_st_real', document.getElementById('ap_min_realwords').value, latest.real_word_ratio, false);
+    judge('ap_st_overall', document.getElementById('ap_target_score').value, latestOverall, false, true);
+    judge('ap_st_improvement', document.getElementById('ap_min_improvement').value, sb.improvement_pct, false, false);
+    judge('ap_st_unk', document.getElementById('ap_max_unk').value, latest.unk_ratio, true, true);
+    judge('ap_st_rep', document.getElementById('ap_max_rep').value, latest.avg_repetition, true, true);
+    judge('ap_st_vocab', document.getElementById('ap_min_vocab').value, latest.vocabulary_diversity, false, false);
+    judge('ap_st_real', document.getElementById('ap_min_realwords').value, latest.real_word_ratio, false, true);
 }
 
 function stopAutopilot() {
