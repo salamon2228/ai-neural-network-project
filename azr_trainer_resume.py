@@ -274,6 +274,7 @@ class AZRTrainer:
                         'current_loss': float(self.current_loss),
                         'current_reward': float(self.current_reward),
                         'is_training': True,
+                        'phase': 'training',
                         'perplexity': float(self.current_perplexity),
                         'tokens_per_sec': round(self._tokens_per_sec, 1),
                         'eta_seconds': eta,
@@ -293,7 +294,9 @@ class AZRTrainer:
         checkpoint_dir = Path(checkpoint_dir)
         checkpoint_dir.mkdir(exist_ok=True, parents=True)
 
-        dataset = TextDataset(texts, self.tokenizer, max_length=128)
+        # Chunk length must not exceed the model's max_seq_len (crash otherwise)
+        chunk_len = min(128, self.model.max_seq_len)
+        dataset = TextDataset(texts, self.tokenizer, max_length=chunk_len)
         if len(dataset) == 0:
             print("ERROR: No samples in dataset! Check your text data.")
             return []
@@ -405,6 +408,7 @@ class AZRTrainer:
                     'current_loss': float(self.current_loss),
                     'current_reward': float(self.current_reward),
                     'is_training': False,
+                    'phase': 'idle',
                     'perplexity': float(self.current_perplexity),
                     'tokens_per_sec': 0,
                     'eta_seconds': 0,
@@ -497,6 +501,16 @@ class AZRTrainer:
 
     def save_checkpoint(self, path, save_optimizer=False):
         try:
+            # Full architecture config so a checkpoint alone is enough to rebuild the model
+            try:
+                first_block = self.model.blocks[0]
+                arch_extra = {
+                    'num_layers': len(self.model.blocks),
+                    'num_heads': first_block.attention.num_heads,
+                    'd_ff': first_block.ff.linear1.out_features,
+                }
+            except Exception:
+                arch_extra = {}
             checkpoint = {
                 'model_state_dict': self.model.state_dict(),
                 'iteration': self.iteration,
@@ -504,7 +518,8 @@ class AZRTrainer:
                 'model_config': {
                     'vocab_size': self.model.vocab_size,
                     'd_model': self.model.d_model,
-                    'max_seq_len': self.model.max_seq_len
+                    'max_seq_len': self.model.max_seq_len,
+                    **arch_extra
                 },
                 'timestamp': datetime.now().isoformat()
             }

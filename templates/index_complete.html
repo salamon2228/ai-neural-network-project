@@ -6,127 +6,170 @@
     <title>AZR Model Trainer v2</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
+        /* ── Anthropic-style light theme ─────────────────────────────
+           Palette: pampas #F0EEE6, ivory #FAF9F5, ink #1F1E1D,
+           Claude terracotta #D97757 / #C15F3C, warm grays & hairlines */
+        :root {
+            --bg: #F0EEE6; --card: #FAF9F5; --panel: #FFFFFF; --panel-soft: #FAF7F0;
+            --ink: #1F1E1D; --text: #40403B; --muted: #73706A; --faint: #8A857A;
+            --line: #E3DFD3; --line-strong: #D9D4C7; --line-soft: #ECE8DC;
+            --accent: #C15F3C; --accent-soft: #D97757;
+            --green: #1A7F5A; --red: #C43D3D; --amber: #B45309;
+            --serif: "Tiempos Text", Georgia, "Times New Roman", serif;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); min-height: 100vh; padding: 15px; color: #e0e0e0; }
-        .container { max-width: 1500px; margin: 0 auto; background: #1a1a2e; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); border: 1px solid #333; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; text-align: center; border-radius: 16px 16px 0 0; position: relative; }
-        .header h1 { font-size: 2em; margin-bottom: 5px; }
-        .header p { opacity: 0.9; font-size: 0.95em; }
-        .lang-toggle { position: absolute; top: 15px; right: 20px; display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.3); }
-        .lang-btn { padding: 6px 14px; background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); border: none; cursor: pointer; font-weight: 600; font-size: 0.85em; transition: all 0.3s; }
-        .lang-btn.active { background: rgba(255,255,255,0.3); color: white; }
-        .lang-btn:hover { background: rgba(255,255,255,0.2); }
-        .tabs { display: flex; background: #16213e; flex-wrap: wrap; border-bottom: 1px solid #333; overflow-x: auto; }
-        .tab { flex: 1; min-width: 100px; padding: 12px 8px; text-align: center; cursor: pointer; background: #16213e; border: none; font-size: 0.85em; font-weight: 600; color: #888; transition: all 0.3s; white-space: nowrap; }
-        .tab:hover { background: #1a1a2e; color: #aaa; }
-        .tab.active { background: #1a1a2e; color: #667eea; border-bottom: 2px solid #667eea; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); min-height: 100vh; padding: 24px 15px; color: var(--ink); }
+        h1, h2, h3, h4, .modal h2 { font-family: var(--serif); font-weight: 600; letter-spacing: -0.01em; }
+        .container { max-width: 1500px; margin: 0 auto; background: var(--card); border-radius: 16px; box-shadow: 0 8px 32px rgba(60,50,35,0.08); border: 1px solid var(--line); }
+        .header { background: var(--card); color: var(--ink); padding: 28px 25px 22px; text-align: center; border-radius: 16px 16px 0 0; position: relative; border-bottom: 1px solid var(--line); }
+        .header h1 { font-size: 2em; margin-bottom: 5px; color: var(--ink); }
+        .header h1::before { content: "✳ "; color: var(--accent-soft); }
+        .header p { color: var(--muted); font-size: 0.95em; }
+        .lang-toggle { position: absolute; top: 18px; right: 20px; display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid var(--line-strong); }
+        .lang-btn { padding: 6px 14px; background: transparent; color: var(--muted); border: none; cursor: pointer; font-weight: 600; font-size: 0.85em; transition: all 0.3s; }
+        .lang-btn.active { background: var(--ink); color: var(--card); }
+        .lang-btn:hover:not(.active) { background: var(--line-soft); }
+        .tabs { display: flex; background: #F5F2EA; flex-wrap: wrap; border-bottom: 1px solid var(--line); overflow-x: auto; }
+        .tab { flex: 1; min-width: 100px; padding: 12px 8px; text-align: center; cursor: pointer; background: transparent; border: none; font-size: 0.85em; font-weight: 600; color: var(--muted); transition: all 0.3s; white-space: nowrap; }
+        .tab:hover { background: var(--line-soft); color: var(--text); }
+        .tab.active { background: var(--card); color: var(--accent); border-bottom: 2px solid var(--accent); }
         .tab-content { display: none; padding: 25px; max-height: 85vh; overflow-y: auto; }
         .tab-content.active { display: block; }
         .form-group { margin-bottom: 18px; position: relative; }
-        .form-group label { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 6px; color: #ccc; font-size: 0.9em; }
-        .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #667eea; color: white; font-size: 10px; font-weight: bold; cursor: help; position: relative; }
-        .tooltip { display: none; position: absolute; background: #0a0a1a; color: #ddd; padding: 10px; border-radius: 8px; font-size: 11px; width: 280px; z-index: 1000; left: 100%; top: -10px; margin-left: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); line-height: 1.4; font-weight: normal; border: 1px solid #444; }
+        .form-group label { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-bottom: 6px; color: var(--text); font-size: 0.9em; }
+        .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: var(--accent-soft); color: white; font-size: 10px; font-weight: bold; cursor: help; position: relative; }
+        .tooltip { display: none; position: absolute; background: #262624; color: #EDEAE4; padding: 10px; border-radius: 8px; font-size: 11px; width: 280px; z-index: 1000; left: 100%; top: -10px; margin-left: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); line-height: 1.4; font-weight: normal; border: 1px solid #3A3A36; }
         .help-icon:hover .tooltip { display: block; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #444; border-radius: 8px; font-size: 0.95em; background: #16213e; color: #e0e0e0; transition: border-color 0.3s; }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
-        .recommended { font-size: 0.8em; color: #10b981; margin-top: 3px; }
+        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid var(--line-strong); border-radius: 8px; font-size: 0.95em; background: var(--panel); color: var(--ink); transition: border-color 0.3s, box-shadow 0.3s; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(217,119,87,0.15); }
+        input::placeholder, textarea::placeholder { color: #A8A294; }
+        .recommended { font-size: 0.8em; color: var(--green); margin-top: 3px; }
         .btn { padding: 10px 24px; border: none; border-radius: 8px; font-size: 0.9em; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 8px; margin-bottom: 8px; }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
-        .btn-success { background: #10b981; color: white; }
-        .btn-success:hover { background: #059669; }
-        .btn-danger { background: #ef4444; color: white; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-outline { background: transparent; color: #667eea; border: 1px solid #667eea; }
-        .btn-outline:hover { background: #667eea22; }
+        .btn-primary { background: linear-gradient(135deg, #D97757 0%, #C15F3C 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(193,95,60,0.35); }
+        .btn-success { background: var(--green); color: white; }
+        .btn-success:hover { background: #14684A; }
+        .btn-danger { background: var(--red); color: white; }
+        .btn-danger:hover { background: #A93434; }
+        .btn-outline { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+        .btn-outline:hover { background: rgba(193,95,60,0.08); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
         .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; }
-        .chart-container { position: relative; height: 300px; margin: 15px 0; background: #16213e; border-radius: 12px; padding: 15px; border: 1px solid #333; }
-        .ap-log-entry { padding: 6px 0; border-bottom: 1px solid #222; line-height: 1.6; }
-        .ap-time { color: #555; font-family: monospace; font-size: 0.8em; margin-right: 6px; }
+        .chart-container { position: relative; height: 300px; margin: 15px 0; background: var(--panel); border-radius: 12px; padding: 15px; border: 1px solid var(--line); }
+        .ap-log-entry { padding: 6px 0; border-bottom: 1px solid var(--line-soft); line-height: 1.6; }
+        .ap-time { color: var(--faint); font-family: monospace; font-size: 0.8em; margin-right: 6px; }
         .ap-type { font-weight: 600; padding: 1px 6px; border-radius: 4px; font-size: 0.75em; margin-right: 6px; display: inline-block; min-width: 60px; text-align: center; }
-        .ap-log-thinking .ap-type { background: #667eea33; color: #667eea; }
-        .ap-log-assistant .ap-type { background: #10b98133; color: #10b981; }
-        .ap-log-tool_call .ap-type { background: #f59e0b33; color: #f59e0b; }
-        .ap-log-tool_result .ap-type { background: #06b6d433; color: #06b6d4; }
-        .ap-log-status .ap-type { background: #8b5cf633; color: #8b5cf6; }
-        .ap-log-system .ap-type { background: #ef444433; color: #ef4444; }
-        .ap-log-error .ap-type { background: #ef444433; color: #ef4444; }
-        .ap-content { color: #ccc; word-break: break-word; }
-        .status-box { background: #16213e; border: 1px solid #333; border-radius: 12px; padding: 18px; margin-top: 15px; }
-        .status-box h3 { color: #667eea; margin-bottom: 12px; font-size: 1em; }
-        .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #222; }
-        .status-label { font-weight: 600; color: #888; font-size: 0.9em; }
-        .status-value { color: #e0e0e0; font-weight: 600; font-size: 0.9em; }
-        .progress-bar { width: 100%; height: 24px; background: #222; border-radius: 12px; overflow: hidden; margin: 12px 0; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.8em; }
-        .info-card { background: #16213e; border: 1px solid #333; border-radius: 12px; padding: 18px; margin-bottom: 12px; }
-        .info-card h3 { color: #667eea; margin-bottom: 8px; font-size: 1em; }
-        .info-card h4 { color: #ccc; margin: 12px 0 6px; font-size: 0.95em; }
-        .info-card ul, .info-card ol { margin-left: 18px; line-height: 1.7; color: #aaa; font-size: 0.9em; }
+        .ap-log-thinking .ap-type { background: rgba(193,95,60,0.12); color: var(--accent); }
+        .ap-log-assistant .ap-type { background: rgba(26,127,90,0.12); color: var(--green); }
+        .ap-log-tool_call .ap-type { background: rgba(180,83,9,0.12); color: var(--amber); }
+        .ap-log-tool_result .ap-type { background: rgba(14,116,144,0.12); color: #0E7490; }
+        .ap-log-status .ap-type { background: rgba(124,92,191,0.12); color: #7C5CBF; }
+        .ap-log-system .ap-type { background: rgba(196,61,61,0.12); color: var(--red); }
+        .ap-log-error .ap-type { background: rgba(196,61,61,0.12); color: var(--red); }
+        .ap-content { color: var(--text); word-break: break-word; }
+        .status-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 15px; }
+        .status-box h3 { color: var(--accent); margin-bottom: 12px; font-size: 1em; }
+        .status-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+        .status-label { font-weight: 600; color: var(--muted); font-size: 0.9em; }
+        .status-value { color: var(--ink); font-weight: 600; font-size: 0.9em; }
+        .progress-bar { width: 100%; height: 24px; background: var(--line-soft); border-radius: 12px; overflow: hidden; margin: 12px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #D97757 0%, #C15F3C 100%); transition: width 0.3s; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.8em; }
+        .info-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 12px; }
+        .info-card h3 { color: var(--ink); margin-bottom: 8px; font-size: 1.05em; }
+        .info-card h4 { color: var(--text); margin: 12px 0 6px; font-size: 0.95em; }
+        .info-card ul, .info-card ol { margin-left: 18px; line-height: 1.7; color: var(--muted); font-size: 0.9em; }
         .alert { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9em; }
-        .alert-success { background: #10b98122; color: #10b981; border: 1px solid #10b981; }
-        .alert-error { background: #ef444422; color: #ef4444; border: 1px solid #ef4444; }
-        .alert-info { background: #667eea22; color: #667eea; border: 1px solid #667eea; }
+        .alert-success { background: rgba(26,127,90,0.08); color: var(--green); border: 1px solid rgba(26,127,90,0.4); }
+        .alert-error { background: rgba(196,61,61,0.08); color: var(--red); border: 1px solid rgba(196,61,61,0.4); }
+        .alert-info { background: rgba(193,95,60,0.07); color: var(--accent); border: 1px solid rgba(193,95,60,0.35); }
         table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.9em; }
-        table th, table td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
-        table th { color: #667eea; font-weight: 600; }
-        table td { color: #ccc; }
-        code { background: #0a0a1a; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #667eea; font-size: 0.85em; }
-        .dataset-item { background: #0f0f23; border: 1px solid #333; border-radius: 8px; padding: 10px 14px; margin: 6px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
-        .catalog-card { background: #16213e; border: 1px solid #333; border-radius: 12px; padding: 16px; transition: all 0.3s; cursor: default; }
-        .catalog-card:hover { border-color: #667eea; transform: translateY(-2px); }
-        .catalog-card h4 { color: #e0e0e0; margin-bottom: 4px; font-size: 0.95em; }
-        .catalog-card .desc { color: #888; font-size: 0.8em; line-height: 1.4; margin: 6px 0; }
+        table th, table td { padding: 10px; text-align: left; border-bottom: 1px solid var(--line-soft); }
+        table th { color: var(--faint); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--line-strong); }
+        table td { color: var(--text); }
+        code { background: #F0EDE4; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: var(--accent); font-size: 0.85em; }
+        .dataset-item { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 6px 0; display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; }
+        .catalog-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; transition: all 0.3s; cursor: default; }
+        .catalog-card:hover { border-color: var(--accent-soft); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(60,50,35,0.08); }
+        .catalog-card h4 { color: var(--ink); margin-bottom: 4px; font-size: 0.95em; }
+        .catalog-card .desc { color: var(--muted); font-size: 0.8em; line-height: 1.4; margin: 6px 0; }
         .catalog-card .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
         .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: 600; }
-        .badge-lang { background: #667eea33; color: #667eea; }
-        .badge-size { background: #10b98133; color: #10b981; }
-        .badge-cat { background: #f59e0b33; color: #f59e0b; }
-        .badge-downloaded { background: #10b98133; color: #10b981; }
-        .preset-card { background: #0f0f23; border: 2px solid #333; border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; }
-        .preset-card:hover { border-color: #667eea; transform: translateY(-2px); }
-        .preset-card.selected { border-color: #667eea; background: #667eea11; }
-        .preset-card h4 { color: #e0e0e0; margin-bottom: 6px; }
-        .preset-card .preset-desc { color: #888; font-size: 0.8em; }
-        .preset-card .preset-specs { color: #667eea; font-size: 0.75em; margin-top: 6px; font-family: monospace; }
+        .badge-lang { background: rgba(193,95,60,0.12); color: var(--accent); }
+        .badge-size { background: rgba(26,127,90,0.12); color: var(--green); }
+        .badge-cat { background: rgba(180,83,9,0.12); color: var(--amber); }
+        .badge-downloaded { background: rgba(26,127,90,0.12); color: var(--green); }
+        .preset-card { background: var(--panel); border: 2px solid var(--line); border-radius: 12px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .preset-card:hover { border-color: var(--accent-soft); transform: translateY(-2px); }
+        .preset-card.selected { border-color: var(--accent); background: rgba(193,95,60,0.05); }
+        .preset-card h4 { color: var(--ink); margin-bottom: 6px; }
+        .preset-card .preset-desc { color: var(--muted); font-size: 0.8em; }
+        .preset-card .preset-specs { color: var(--accent); font-size: 0.75em; margin-top: 6px; font-family: monospace; }
         .token-viz { line-height: 2; padding: 12px; }
         .token { display: inline-block; padding: 2px 4px; margin: 1px; border-radius: 3px; font-size: 0.9em; cursor: help; position: relative; }
-        .token:hover::after { content: attr(data-info); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #0a0a1a; color: #ddd; padding: 6px 10px; border-radius: 6px; font-size: 0.75em; white-space: nowrap; z-index: 100; border: 1px solid #444; }
+        .token:hover::after { content: attr(data-info); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #262624; color: #EDEAE4; padding: 6px 10px; border-radius: 6px; font-size: 0.75em; white-space: nowrap; z-index: 100; border: 1px solid #3A3A36; }
         .milestones { display: flex; justify-content: space-between; padding: 10px 0; margin: 10px 0; }
         .milestone { text-align: center; flex: 1; position: relative; }
-        .milestone::before { content: ''; position: absolute; top: 12px; left: 0; right: 0; height: 2px; background: #333; z-index: 0; }
-        .milestone.reached::before { background: #667eea; }
-        .milestone-dot { width: 24px; height: 24px; border-radius: 50%; background: #333; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; position: relative; z-index: 1; margin-bottom: 4px; }
-        .milestone.reached .milestone-dot { background: #667eea; color: white; }
-        .milestone-label { font-size: 0.65em; color: #666; display: block; }
-        .milestone.reached .milestone-label { color: #667eea; }
-        .whats-happening { background: linear-gradient(135deg, #667eea11, #764ba211); border: 1px solid #667eea44; border-radius: 12px; padding: 16px; margin: 12px 0; display: none; }
-        .whats-happening h4 { color: #667eea; margin-bottom: 8px; font-size: 0.9em; }
-        .whats-happening p { color: #aaa; font-size: 0.85em; line-height: 1.5; }
+        .milestone::before { content: ''; position: absolute; top: 12px; left: 0; right: 0; height: 2px; background: var(--line-strong); z-index: 0; }
+        .milestone.reached::before { background: var(--accent-soft); }
+        .milestone-dot { width: 24px; height: 24px; border-radius: 50%; background: var(--line-strong); display: inline-flex; align-items: center; justify-content: center; font-size: 10px; position: relative; z-index: 1; margin-bottom: 4px; color: var(--muted); }
+        .milestone.reached .milestone-dot { background: var(--accent-soft); color: white; }
+        .milestone-label { font-size: 0.65em; color: var(--faint); display: block; }
+        .milestone.reached .milestone-label { color: var(--accent); }
+        .whats-happening { background: rgba(217,119,87,0.06); border: 1px solid rgba(217,119,87,0.3); border-radius: 12px; padding: 16px; margin: 12px 0; display: none; }
+        .whats-happening h4 { color: var(--accent); margin-bottom: 8px; font-size: 0.9em; }
+        .whats-happening p { color: var(--text); font-size: 0.85em; line-height: 1.5; }
         .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .compare-panel { background: #0f0f23; border: 1px solid #333; border-radius: 12px; padding: 15px; }
-        .compare-panel h4 { color: #667eea; margin-bottom: 8px; font-size: 0.9em; }
-        .compare-panel .text-output { color: #ccc; font-size: 0.85em; line-height: 1.6; min-height: 100px; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center; }
+        .compare-panel { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 12px; padding: 15px; }
+        .compare-panel h4 { color: var(--accent); margin-bottom: 8px; font-size: 0.9em; }
+        .compare-panel .text-output { color: var(--text); font-size: 0.85em; line-height: 1.6; min-height: 100px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(35,32,26,0.55); z-index: 9999; align-items: center; justify-content: center; }
         .modal-overlay.active { display: flex; }
-        .modal { background: #1a1a2e; border: 1px solid #444; border-radius: 16px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
-        .modal h2 { color: #667eea; margin-bottom: 15px; }
-        .modal p { color: #aaa; line-height: 1.6; margin-bottom: 12px; }
+        .modal { background: var(--card); border: 1px solid var(--line-strong); border-radius: 16px; padding: 30px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto; }
+        .modal h2 { color: var(--ink); margin-bottom: 15px; }
+        .modal p { color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
         .category-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
-        .cat-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid #444; background: transparent; color: #aaa; cursor: pointer; font-size: 0.8em; transition: all 0.2s; }
-        .cat-btn:hover, .cat-btn.active { border-color: #667eea; color: #667eea; background: #667eea11; }
+        .cat-btn { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); cursor: pointer; font-size: 0.8em; transition: all 0.2s; }
+        .cat-btn:hover, .cat-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(193,95,60,0.06); }
         .radar-container { height: 250px; }
         .search-box { display: flex; gap: 8px; margin-bottom: 15px; }
         .search-box input { flex: 1; }
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f0f23; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #667eea; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-soft); }
+        /* ── Target benchmark table (Anthropic model-card style) ── */
+        .bench-card { padding: 0; overflow: hidden; }
+        .bench-head { padding: 18px 20px 4px; }
+        .bench-title { font-size: 1.25em; color: var(--ink); }
+        .bench-sub { color: var(--muted); font-size: 0.85em; line-height: 1.55; margin: 6px 0 10px; max-width: 720px; }
+        .bench-table { width: 100%; border-collapse: collapse; margin: 0; }
+        .bench-table thead th { font-size: 0.72em; text-transform: uppercase; letter-spacing: 0.09em; color: var(--faint); font-weight: 600; text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-strong); background: var(--panel-soft); }
+        .bench-table td { padding: 14px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+        .bench-table tbody tr:last-child td { border-bottom: none; }
+        .bench-table tbody tr:hover { background: rgba(217,119,87,0.03); }
+        .bench-th-metric { width: 38%; }
+        .bench-metric .bench-name { display: block; font-family: var(--serif); font-size: 1.02em; font-weight: 600; color: var(--ink); }
+        .bench-metric .bench-hint { display: block; font-size: 0.76em; color: var(--faint); margin-top: 3px; line-height: 1.45; max-width: 420px; }
+        .bench-target { display: flex; align-items: center; gap: 6px; }
+        .bench-target input { width: 88px; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel); color: var(--ink); font-size: 0.95em; text-align: center; font-variant-numeric: tabular-nums; transition: border-color 0.3s, box-shadow 0.3s; }
+        .bench-target input:focus { outline: none; border-color: var(--accent-soft); box-shadow: 0 0 0 3px rgba(217,119,87,0.15); }
+        .bench-dir { color: var(--faint); font-size: 0.95em; }
+        .bench-unit { color: var(--faint); font-size: 0.85em; }
+        .bench-val { font-variant-numeric: tabular-nums; font-size: 1em; color: var(--muted); }
+        .bench-result { color: var(--ink); font-weight: 600; }
+        .bench-chip { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72em; font-weight: 600; white-space: nowrap; }
+        .bench-chip-pending { background: var(--line-soft); color: var(--faint); }
+        .bench-chip-pass { background: rgba(26,127,90,0.14); color: var(--green); }
+        .bench-chip-fail { background: rgba(196,61,61,0.12); color: var(--red); }
+        .bench-model-line { padding: 10px 20px 0; color: var(--faint); font-size: 0.85em; }
+        .bench-card .form-group, .bench-card > div[style*="display:flex"] { padding-left: 20px; padding-right: 20px; }
+        .bench-card > div[style*="display:flex"] { padding-bottom: 18px; }
         @media (max-width: 768px) {
             .compare-grid { grid-template-columns: 1fr; }
             .grid-3 { grid-template-columns: 1fr; }
+            .bench-metric .bench-hint { display: none; }
+            .bench-table thead th, .bench-table td { padding: 9px 8px; }
         }
     </style>
 </head>
@@ -150,7 +193,7 @@
             <button class="tab" onclick="showTab('generate')" data-i18n="tab_generate">Генерация</button>
             <button class="tab" onclick="showTab('compare')" data-i18n="tab_compare">Сравнение</button>
             <button class="tab" onclick="showTab('models')" data-i18n="tab_models">Модели</button>
-            <button class="tab" onclick="showTab('autopilot')" style="background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;position:relative;"><span data-i18n="tab_autopilot">Автопилот</span> <span style="font-size:0.6em;background:#f59e0b;color:#000;padding:1px 5px;border-radius:8px;font-weight:700;vertical-align:super;">BETA</span></button>
+            <button class="tab" onclick="showTab('autopilot')" style="background:linear-gradient(135deg,#C15F3C,#D97757);color:#fff;position:relative;"><span data-i18n="tab_autopilot">Автопилот</span> <span style="font-size:0.6em;background:#B45309;color:#fff;padding:1px 5px;border-radius:8px;font-weight:700;vertical-align:super;">BETA</span></button>
         </div>
 
         <!-- ПОМОЩЬ -->
@@ -163,7 +206,7 @@
                     <li data-i18n="step2"><strong>Создайте модель</strong> — Вкладка "Создать" — выберите пресет и нажмите кнопку</li>
                     <li data-i18n="step3"><strong>Запустите обучение</strong> — Вкладка "Обучение" — выберите модель, нажмите "Начать"</li>
                 </ol>
-                <p style="margin-top:10px;color:#10b981;" data-i18n="after_training_tip">После обучения — генерируйте текст на вкладке "Генерация" и сравнивайте итерации на вкладке "Сравнение"</p>
+                <p style="margin-top:10px;color:#1A7F5A;" data-i18n="after_training_tip">После обучения — генерируйте текст на вкладке "Генерация" и сравнивайте итерации на вкладке "Сравнение"</p>
             </div>
             <div class="info-card">
                 <h3 data-i18n="whats_new">Что нового в v2</h3>
@@ -198,7 +241,7 @@
         <!-- КАТАЛОГ -->
         <div id="catalog" class="tab-content">
             <h2 data-i18n="catalog_title">Каталог датасетов</h2>
-            <p style="color:#888;margin-bottom:15px;" data-i18n="catalog_desc">Скачайте готовые датасеты одним кликом или найдите на HuggingFace</p>
+            <p style="color:#73706A;margin-bottom:15px;" data-i18n="catalog_desc">Скачайте готовые датасеты одним кликом или найдите на HuggingFace</p>
             <div class="category-filters" id="category_filters"></div>
             <div class="search-box">
                 <input type="text" id="hf_search" placeholder="Поиск на HuggingFace (например: russian text, poetry, code)..." data-i18n-placeholder="hf_placeholder">
@@ -207,7 +250,7 @@
             <div class="search-box" style="margin-top:10px;">
                 <input type="text" id="custom_url_name" placeholder="Название" style="flex:0.3;" data-i18n-placeholder="placeholder_name">
                 <input type="text" id="custom_url" placeholder="URL (https://...)" style="flex:0.5;">
-                <select id="custom_url_lang" style="flex:0.15;padding:10px;background:#16213e;color:#e0e0e0;border:1px solid #444;border-radius:8px;">
+                <select id="custom_url_lang" style="flex:0.15;padding:10px;background:#FFFFFF;color:#1F1E1D;border:1px solid #D9D4C7;border-radius:8px;">
                     <option value="auto">Auto</option><option value="ru">RU</option><option value="en">EN</option>
                 </select>
                 <button class="btn btn-success" onclick="addCustomURL()" data-i18n="btn_add_url">+ URL</button>
@@ -282,7 +325,7 @@
                 <input type="file" id="book_file" accept=".txt,.csv,.json,.jsonl,.pdf,.jpg,.jpeg,.png" onchange="uploadBook()" style="display:none;">
                 <div style="display:flex;align-items:center;gap:12px;margin:10px 0;">
                     <button class="btn btn-outline" onclick="document.getElementById('book_file').click()" data-i18n="btn_choose_file">Выбрать файл</button>
-                    <span id="chosen_file_name" style="color:#888;font-size:0.9em;" data-i18n="no_file_chosen">Файл не выбран</span>
+                    <span id="chosen_file_name" style="color:#73706A;font-size:0.9em;" data-i18n="no_file_chosen">Файл не выбран</span>
                 </div>
                 <div class="recommended" data-i18n="supported_formats">Поддерживаются: .txt, .csv, .json, .jsonl, .pdf, .jpg, .png</div>
                 <div id="upload_status"></div>
@@ -390,7 +433,7 @@
             <button class="btn btn-primary" onclick="generateText()" data-i18n="btn_generate">Сгенерировать</button>
             <button class="btn btn-success" onclick="generateBeforeAfter()" data-i18n="before_after">До / После</button>
             <div class="info-card" style="margin-top:15px;">
-                <h3 data-i18n="generation_result">Результат</h3> <span style="font-size:0.7em;color:#888;" data-i18n="confidence_hint">(цвет = уверенность модели: зелёный=высокая, жёлтый=средняя, красный=низкая)</span>
+                <h3 data-i18n="generation_result">Результат</h3> <span style="font-size:0.7em;color:#73706A;" data-i18n="confidence_hint">(цвет = уверенность модели: зелёный=высокая, жёлтый=средняя, красный=низкая)</span>
                 <div id="generated_output" class="token-viz" style="min-height:80px;" data-i18n="text_placeholder">Текст появится здесь...</div>
             </div>
             <div id="quality_radar_container" style="display:none;" class="info-card">
@@ -398,10 +441,10 @@
                 <div class="radar-container"><canvas id="qualityRadar"></canvas></div>
             </div>
             <div id="before_after_container" style="display:none;">
-                <h3 style="color:#667eea;margin:15px 0 10px;" data-i18n="before_vs_after">До обучения vs После</h3>
+                <h3 style="color:#C15F3C;margin:15px 0 10px;" data-i18n="before_vs_after">До обучения vs После</h3>
                 <div class="compare-grid">
-                    <div class="compare-panel"><h4 data-i18n="before_training">До обучения</h4><div id="before_text" class="text-output"></div><div id="before_quality" style="margin-top:8px;font-size:0.8em;color:#888;"></div></div>
-                    <div class="compare-panel"><h4 data-i18n="after_training">После обучения</h4><div id="after_text" class="text-output"></div><div id="after_quality" style="margin-top:8px;font-size:0.8em;color:#888;"></div></div>
+                    <div class="compare-panel"><h4 data-i18n="before_training">До обучения</h4><div id="before_text" class="text-output"></div><div id="before_quality" style="margin-top:8px;font-size:0.8em;color:#73706A;"></div></div>
+                    <div class="compare-panel"><h4 data-i18n="after_training">После обучения</h4><div id="after_text" class="text-output"></div><div id="after_quality" style="margin-top:8px;font-size:0.8em;color:#73706A;"></div></div>
                 </div>
                 <div id="improvement_summary" class="alert alert-success" style="margin-top:10px;display:none;"></div>
             </div>
@@ -419,8 +462,8 @@
             <button class="btn btn-primary" onclick="compareCheckpoints()" data-i18n="btn_compare">Сравнить</button>
             <div id="compare_results" style="display:none;margin-top:15px;">
                 <div class="compare-grid">
-                    <div class="compare-panel"><h4 id="compare_label_a">A</h4><div id="compare_text_a" class="text-output"></div><div id="compare_quality_a" style="margin-top:8px;font-size:0.8em;color:#888;"></div></div>
-                    <div class="compare-panel"><h4 id="compare_label_b">B</h4><div id="compare_text_b" class="text-output"></div><div id="compare_quality_b" style="margin-top:8px;font-size:0.8em;color:#888;"></div></div>
+                    <div class="compare-panel"><h4 id="compare_label_a">A</h4><div id="compare_text_a" class="text-output"></div><div id="compare_quality_a" style="margin-top:8px;font-size:0.8em;color:#73706A;"></div></div>
+                    <div class="compare-panel"><h4 id="compare_label_b">B</h4><div id="compare_text_b" class="text-output"></div><div id="compare_quality_b" style="margin-top:8px;font-size:0.8em;color:#73706A;"></div></div>
                 </div>
             </div>
             <div id="compare_radar_container" style="display:none;" class="info-card"><h3 data-i18n="compare_quality">Сравнение качества</h3><div class="radar-container"><canvas id="compareRadar"></canvas></div></div>
@@ -437,11 +480,11 @@
         <!-- АВТОПИЛОТ -->
         <div id="autopilot" class="tab-content">
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-                <h2 data-i18n="autopilot_title" style="background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;">LLM Автопилот</h2>
-                <span style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font-size:0.7em;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;">BETA</span>
+                <h2 data-i18n="autopilot_title" style="background:linear-gradient(135deg,#C15F3C,#D97757);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0;">LLM Автопилот</h2>
+                <span style="background:linear-gradient(135deg,#B45309,#C43D3D);color:#fff;font-size:0.7em;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;">BETA</span>
             </div>
             <p data-i18n="autopilot_desc">Опишите цель — AI подберёт данные, создаст и обучит модель автоматически</p>
-            <div style="background:#f59e0b15;border:1px solid #f59e0b44;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.85em;color:#f59e0b;">
+            <div style="background:#B4530915;border:1px solid #B4530944;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.85em;color:#B45309;">
                 <span style="font-weight:700;">BETA</span> — <span data-i18n="autopilot_beta_notice">Эта функция в режиме бета-тестирования. Результаты могут быть нестабильными. Требуется API ключ от OpenAI, Anthropic или локальная LLM.</span>
             </div>
 
@@ -474,7 +517,7 @@
                         <input type="text" id="ap_endpoint" placeholder="https://xxxx.ngrok.io/v1">
                     </div>
                 </div>
-                <div id="ap_provider_help" style="background:#667eea15;border:1px solid #667eea44;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:0.82em;line-height:1.6;"></div>
+                <div id="ap_provider_help" style="background:#C15F3C15;border:1px solid #C15F3C44;border-radius:8px;padding:12px 14px;margin-top:8px;font-size:0.82em;line-height:1.6;"></div>
             </div>
 
             <div class="info-card">
@@ -488,27 +531,91 @@
                     <label data-i18n="autopilot_time_budget">Лимит времени (минут):</label>
                     <div style="display:flex;align-items:center;gap:10px;">
                         <input type="number" id="ap_time_budget" min="0" max="480" value="0" style="width:100px;">
-                        <span style="color:#9ca3af;font-size:0.82em;" data-i18n="autopilot_time_hint">0 = без лимита. LLM подстроит кол-во итераций под время.</span>
+                        <span style="color:#8A857A;font-size:0.82em;" data-i18n="autopilot_time_hint">0 = без лимита. LLM подстроит кол-во итераций под время.</span>
                     </div>
                 </div>
             </div>
 
-            <div class="info-card">
-                <h3 data-i18n="autopilot_quality_title">Целевое качество (требования к модели)</h3>
-                <p style="color:#9ca3af;font-size:0.85em;margin-bottom:10px;" data-i18n="autopilot_quality_desc">Автопилот обязан доказать что достиг этих целей — или честно сказать что не смог. Пустые поля = не ограничиваем.</p>
-                <div class="grid" style="grid-template-columns:1fr 1fr;">
-                    <div class="form-group">
-                        <label data-i18n="autopilot_target_score">Минимальный скор (0.0-1.0):</label>
-                        <input type="number" id="ap_target_score" min="0" max="1" step="0.05" placeholder="0.65" style="width:100%;">
-                        <span style="color:#9ca3af;font-size:0.78em;" data-i18n="autopilot_target_score_hint">Композитный балл качества. 0.3=плохо, 0.5=норм, 0.7=хорошо, 0.85=отлично.</span>
-                    </div>
-                    <div class="form-group">
-                        <label data-i18n="autopilot_min_improvement">Минимум улучшения vs baseline (%):</label>
-                        <input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20" style="width:100%;">
-                        <span style="color:#9ca3af;font-size:0.78em;" data-i18n="autopilot_min_improvement_hint">На сколько % скор должен вырасти после обучения.</span>
-                    </div>
+            <div class="info-card bench-card">
+                <div class="bench-head">
+                    <h3 class="bench-title" data-i18n="bench_title">Целевые бенчмарки</h3>
+                    <p class="bench-sub" data-i18n="bench_desc">Впишите цели — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки Baseline и Результат заполняются автоматически по ходу обучения.</p>
                 </div>
-                <div class="form-group" style="margin-top:8px;">
+                <table class="bench-table">
+                    <thead>
+                        <tr>
+                            <th class="bench-th-metric" data-i18n="bench_col_metric">Метрика</th>
+                            <th data-i18n="bench_col_target">Цель</th>
+                            <th data-i18n="bench_col_baseline">До обучения</th>
+                            <th data-i18n="bench_col_result">Результат</th>
+                            <th data-i18n="bench_col_status">Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="bench-metric">
+                                <span class="bench-name" data-i18n="bench_m_overall">Общий балл качества</span>
+                                <span class="bench-hint" data-i18n="bench_m_overall_hint">0–1, выше = лучше. 0.3 — плохо, 0.5 — нормально, 0.7 — хорошо, 0.85 — отлично.</span>
+                            </td>
+                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_target_score" min="0" max="1" step="0.05" placeholder="0.65"></div></td>
+                            <td class="bench-val" id="ap_base_overall">—</td>
+                            <td class="bench-val bench-result" id="ap_res_overall">—</td>
+                            <td><span class="bench-chip bench-chip-pending" id="ap_st_overall">—</span></td>
+                        </tr>
+                        <tr>
+                            <td class="bench-metric">
+                                <span class="bench-name" data-i18n="bench_m_improve">Улучшение после обучения</span>
+                                <span class="bench-hint" data-i18n="bench_m_improve_hint">Насколько % общий балл должен вырасти относительно необученной модели.</span>
+                            </td>
+                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20"><span class="bench-unit">%</span></div></td>
+                            <td class="bench-val">0%</td>
+                            <td class="bench-val bench-result" id="ap_res_improvement">—</td>
+                            <td><span class="bench-chip bench-chip-pending" id="ap_st_improvement">—</span></td>
+                        </tr>
+                        <tr>
+                            <td class="bench-metric">
+                                <span class="bench-name" data-i18n="bench_m_unk">Неизвестные слова &lt;UNK&gt;</span>
+                                <span class="bench-hint" data-i18n="bench_m_unk_hint">Доля «мусорных» токенов в тексте. 0–1, ниже = лучше. Хорошая модель: меньше 0.1.</span>
+                            </td>
+                            <td><div class="bench-target"><span class="bench-dir">≤</span><input type="number" id="ap_max_unk" min="0" max="1" step="0.05" placeholder="0.10"></div></td>
+                            <td class="bench-val" id="ap_base_unk">—</td>
+                            <td class="bench-val bench-result" id="ap_res_unk">—</td>
+                            <td><span class="bench-chip bench-chip-pending" id="ap_st_unk">—</span></td>
+                        </tr>
+                        <tr>
+                            <td class="bench-metric">
+                                <span class="bench-name" data-i18n="bench_m_rep">Повторяемость</span>
+                                <span class="bench-hint" data-i18n="bench_m_rep_hint">Насколько модель зацикливается на одних словах. 0–1, ниже = лучше. Хорошо: меньше 0.5.</span>
+                            </td>
+                            <td><div class="bench-target"><span class="bench-dir">≤</span><input type="number" id="ap_max_rep" min="0" max="1" step="0.05" placeholder="0.50"></div></td>
+                            <td class="bench-val" id="ap_base_rep">—</td>
+                            <td class="bench-val bench-result" id="ap_res_rep">—</td>
+                            <td><span class="bench-chip bench-chip-pending" id="ap_st_rep">—</span></td>
+                        </tr>
+                        <tr>
+                            <td class="bench-metric">
+                                <span class="bench-name" data-i18n="bench_m_vocab">Богатство словаря</span>
+                                <span class="bench-hint" data-i18n="bench_m_vocab_hint">Сколько разных настоящих слов модель использует в тестах. Выше = лучше. Хорошо: 50+.</span>
+                            </td>
+                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_min_vocab" min="0" max="10000" step="10" placeholder="50"></div></td>
+                            <td class="bench-val" id="ap_base_vocab">—</td>
+                            <td class="bench-val bench-result" id="ap_res_vocab">—</td>
+                            <td><span class="bench-chip bench-chip-pending" id="ap_st_vocab">—</span></td>
+                        </tr>
+                        <tr>
+                            <td class="bench-metric">
+                                <span class="bench-name" data-i18n="bench_m_real">Доля настоящих слов</span>
+                                <span class="bench-hint" data-i18n="bench_m_real_hint">Сколько слов в тексте — настоящие, а не обрывки и спецсимволы. 0–1, выше = лучше. Хорошо: 0.7+.</span>
+                            </td>
+                            <td><div class="bench-target"><span class="bench-dir">≥</span><input type="number" id="ap_min_realwords" min="0" max="1" step="0.05" placeholder="0.70"></div></td>
+                            <td class="bench-val" id="ap_base_real">—</td>
+                            <td class="bench-val bench-result" id="ap_res_real">—</td>
+                            <td><span class="bench-chip bench-chip-pending" id="ap_st_real">—</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="bench-model-line" id="ap_bench_model_line" style="display:none;"><span data-i18n="bench_model_label">Модель:</span> <b id="ap_bench_model_name">—</b></p>
+                <div class="form-group" style="margin-top:14px;">
                     <label data-i18n="autopilot_must_include">Модель ДОЛЖНА выдавать:</label>
                     <textarea id="ap_must_include" rows="2" style="width:100%;resize:vertical;"
                         data-i18n-placeholder="autopilot_must_include_placeholder"
@@ -525,10 +632,10 @@
                     <textarea id="ap_custom_prompts" rows="4" style="width:100%;resize:vertical;font-family:monospace;"
                         data-i18n-placeholder="autopilot_custom_prompts_placeholder"
                         placeholder="В тот день&#10;Она посмотрела&#10;Когда наступила&#10;Он шёл"></textarea>
-                    <span style="color:#9ca3af;font-size:0.78em;" data-i18n="autopilot_custom_prompts_hint">Если пусто — LLM сам составит промпты под вашу цель.</span>
+                    <span style="color:#8A857A;font-size:0.78em;" data-i18n="autopilot_custom_prompts_hint">Если пусто — LLM сам составит промпты под вашу цель.</span>
                 </div>
                 <div style="display:flex;gap:10px;margin-top:10px;">
-                    <button class="btn btn-primary" onclick="startAutopilot()" id="ap_start_btn" style="background:linear-gradient(135deg,#667eea,#764ba2);" data-i18n="autopilot_start">Запустить автопилот</button>
+                    <button class="btn btn-primary" onclick="startAutopilot()" id="ap_start_btn" style="background:linear-gradient(135deg,#C15F3C,#D97757);" data-i18n="autopilot_start">Запустить автопилот</button>
                     <button class="btn btn-danger" onclick="stopAutopilot()" id="ap_stop_btn" style="display:none;" data-i18n="autopilot_stop">Остановить</button>
                 </div>
             </div>
@@ -562,7 +669,7 @@
     <div class="modal-overlay" id="preview_modal">
         <div class="modal">
             <h2 id="preview_title" data-i18n="preview">Превью</h2>
-            <pre id="preview_content" style="color:#aaa;font-size:0.85em;line-height:1.5;max-height:400px;overflow-y:auto;white-space:pre-wrap;"></pre>
+            <pre id="preview_content" style="color:#57534A;font-size:0.85em;line-height:1.5;max-height:400px;overflow-y:auto;white-space:pre-wrap;"></pre>
             <button class="btn btn-outline" onclick="closePreview()" style="margin-top:15px;" data-i18n="btn_close">Закрыть</button>
         </div>
     </div>
@@ -645,13 +752,13 @@ async function searchHF() {
     const query = document.getElementById('hf_search').value;
     if (!query) return;
     const grid = document.getElementById('catalog_grid');
-    grid.innerHTML = '<p style="color:#888;">' + t('searching') + '</p>';
+    grid.innerHTML = '<p style="color:#73706A;">' + t('searching') + '</p>';
     const resp = await fetch('/dataset_catalog/search_hf?query=' + encodeURIComponent(query) + '&limit=12');
     const data = await resp.json();
     if (data.results && data.results.length > 0 && !data.results[0].error) {
         grid.innerHTML = data.results.map(d => '<div class="catalog-card"><h4>' + d.name + '</h4><p class="desc">' + (d.description || 'HuggingFace dataset') + '</p><div class="badges"><span class="badge badge-cat">HuggingFace</span>' + (d.downloads ? '<span class="badge badge-size">' + d.downloads.toLocaleString() + ' downloads</span>' : '') + '</div></div>').join('');
     } else {
-        grid.innerHTML = '<p style="color:#888;">' + t('nothing_found') + '</p>';
+        grid.innerHTML = '<p style="color:#73706A;">' + t('nothing_found') + '</p>';
     }
 }
 
@@ -743,7 +850,7 @@ async function loadDatasets() {
     const data = await resp.json();
     const div = document.getElementById('available_datasets');
     if (div) {
-        div.innerHTML = data.books.map(b => '<div class="dataset-item"><span>' + (b.name||b) + ' (' + ((b.size||0)/1024).toFixed(1) + ' KB)</span><button class="btn btn-primary" onclick="attachDS(\'' + (b.name||b) + '\')">' + t('btn_attach') + '</button></div>').join('') || '<p style="color:#666;">' + t('no_datasets') + '</p>';
+        div.innerHTML = data.books.map(b => '<div class="dataset-item"><span>' + (b.name||b) + ' (' + ((b.size||0)/1024).toFixed(1) + ' KB)</span><button class="btn btn-primary" onclick="attachDS(\'' + (b.name||b) + '\')">' + t('btn_attach') + '</button></div>').join('') || '<p style="color:#8A857A;">' + t('no_datasets') + '</p>';
     }
     loadModelDatasets();
 }
@@ -756,7 +863,7 @@ async function loadModelDatasets() {
         const data = await resp.json();
         const div = document.getElementById('attached_datasets');
         if (div) {
-            div.innerHTML = data.attached.map(d => '<div class="dataset-item"><span>' + d.name + ' (' + (d.size/1024).toFixed(1) + ' KB)</span><button class="btn btn-danger" onclick="detachDS(\'' + d.name + '\')">' + t('btn_detach') + '</button></div>').join('') || '<p style="color:#666;">' + t('no_attached') + '</p>';
+            div.innerHTML = data.attached.map(d => '<div class="dataset-item"><span>' + d.name + ' (' + (d.size/1024).toFixed(1) + ' KB)</span><button class="btn btn-danger" onclick="detachDS(\'' + d.name + '\')">' + t('btn_detach') + '</button></div>').join('') || '<p style="color:#8A857A;">' + t('no_attached') + '</p>';
         }
     } catch(e) {}
 }
@@ -783,18 +890,18 @@ function initChart() {
         data: {
             labels: chartData.labels,
             datasets: [
-                { label: 'Loss', data: chartData.loss, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.4, yAxisID: 'y' },
-                { label: 'Reward', data: chartData.reward, borderColor: '#667eea', backgroundColor: 'rgba(102,126,234,0.1)', tension: 0.4, yAxisID: 'y1' },
-                { label: 'Perplexity', data: chartData.perplexity, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.4, yAxisID: 'y', borderDash: [5,5] }
+                { label: 'Loss', data: chartData.loss, borderColor: '#1A7F5A', backgroundColor: 'rgba(26,127,90,0.1)', tension: 0.4, yAxisID: 'y' },
+                { label: 'Reward', data: chartData.reward, borderColor: '#C15F3C', backgroundColor: 'rgba(193,95,60,0.1)', tension: 0.4, yAxisID: 'y1' },
+                { label: 'Perplexity', data: chartData.perplexity, borderColor: '#B45309', backgroundColor: 'rgba(180,83,9,0.1)', tension: 0.4, yAxisID: 'y', borderDash: [5,5] }
             ]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
             scales: {
-                y: { type: 'linear', display: true, position: 'left', grid: {color:'#222'}, ticks: {color:'#888'} },
-                y1: { type: 'linear', display: true, position: 'right', grid: {drawOnChartArea:false}, ticks: {color:'#888'} }
+                y: { type: 'linear', display: true, position: 'left', grid: {color:'#ECE8DC'}, ticks: {color:'#73706A'} },
+                y1: { type: 'linear', display: true, position: 'right', grid: {drawOnChartArea:false}, ticks: {color:'#73706A'} }
             },
-            plugins: { legend: { labels: {color:'#aaa'} } }
+            plugins: { legend: { labels: {color:'#57534A'} } }
         }
     });
 }
@@ -857,7 +964,7 @@ async function updateTrainingStatus() {
         const resp = await fetch('/training_status');
         const s = await resp.json();
         document.getElementById('is_training').textContent = s.is_training ? t('training_active') : t('training_idle');
-        document.getElementById('is_training').style.color = s.is_training ? '#10b981' : '#888';
+        document.getElementById('is_training').style.color = s.is_training ? '#1A7F5A' : '#73706A';
         const pct = s.max_iterations > 0 ? (s.current_iteration / s.max_iterations * 100) : 0;
         document.getElementById('progress').style.width = pct.toFixed(1) + '%';
         document.getElementById('progress').textContent = pct.toFixed(1) + '%';
@@ -896,15 +1003,15 @@ async function generateText() {
         temperature: parseFloat(document.getElementById('temperature').value),
         top_k: parseInt(document.getElementById('top_k').value)
     };
-    document.getElementById('generated_output').innerHTML = '<span style="color:#888;">' + t('generating') + '</span>';
+    document.getElementById('generated_output').innerHTML = '<span style="color:#73706A;">' + t('generating') + '</span>';
     try {
         const resp = await fetch('/generate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(config)});
         const data = await resp.json();
         if (data.token_details && data.token_details.length > 0) {
             document.getElementById('generated_output').innerHTML = data.token_details.map(function(t) {
                 var hue = Math.round(t.confidence * 120);
-                var bg = 'hsl(' + hue + ', 60%, 15%)';
-                var border = 'hsl(' + hue + ', 60%, 35%)';
+                var bg = 'hsl(' + hue + ', 55%, 92%)';
+                var border = 'hsl(' + hue + ', 45%, 65%)';
                 var alts = t.top_alternatives ? t.top_alternatives.map(function(a) { return a.token + ' ' + (a.prob*100).toFixed(1) + '%'; }).join(', ') : '';
                 return '<span class="token" style="background:' + bg + ';border:1px solid ' + border + ';" data-info="Confidence: ' + (t.confidence*100).toFixed(1) + '% | Alt: ' + alts + '">' + t.token + '</span>';
             }).join(' ');
@@ -995,7 +1102,7 @@ async function loadAnalyticsReports() {
         if (data.reports && data.reports.length > 0) {
             div.innerHTML = '<table><tr><th>Iter</th><th>Loss</th><th>Perplexity</th><th>Reward</th><th>Speed</th></tr>' +
                 data.reports.map(function(r) { return '<tr><td>' + r.iteration + '</td><td>' + r.loss.toFixed(4) + '</td><td>' + r.perplexity.toFixed(1) + '</td><td>' + (r.reward && r.reward.total !== undefined ? r.reward.total.toFixed(4) : '--') + '</td><td>' + (r.tokens_per_sec ? r.tokens_per_sec.toFixed(0) + ' tok/s' : '--') + '</td></tr>'; }).join('') + '</table>';
-        } else { div.innerHTML = '<p style="color:#888;">' + t('no_data') + '</p>'; }
+        } else { div.innerHTML = '<p style="color:#73706A;">' + t('no_data') + '</p>'; }
     } catch(e) {}
 }
 
@@ -1005,7 +1112,7 @@ function renderRadar(canvasId, qualities, labels) {
     if (!canvas) return;
     var existing = Chart.getChart(canvas);
     if (existing) existing.destroy();
-    var colors = ['#667eea', '#10b981', '#f59e0b', '#ef4444'];
+    var colors = ['#C15F3C', '#1A7F5A', '#B45309', '#C43D3D'];
     var radarLabels = Object.keys(REWARD_LABELS).map(function(k) { return REWARD_LABELS[k]; });
     new Chart(canvas, {
         type: 'radar',
@@ -1021,8 +1128,8 @@ function renderRadar(canvasId, qualities, labels) {
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            scales: { r: { min: 0, max: 1, grid: {color:'#333'}, angleLines: {color:'#333'}, pointLabels: {color:'#aaa', font:{size:10}}, ticks: {display:false} } },
-            plugins: { legend: { labels: {color:'#aaa'} } }
+            scales: { r: { min: 0, max: 1, grid: {color:'#E3DFD3'}, angleLines: {color:'#E3DFD3'}, pointLabels: {color:'#57534A', font:{size:10}}, ticks: {display:false} } },
+            plugins: { legend: { labels: {color:'#57534A'} } }
         }
     });
 }
@@ -1033,13 +1140,13 @@ async function loadModelsList() {
     var data = await resp.json();
     var div = document.getElementById('models_list');
     div.innerHTML = data.models.map(function(m) {
-        return '<div class="info-card"><h3>' + m.name + (m.trained ? ' <span style="color:#10b981;">(' + t('trained') + ')</span>' : '') + '</h3>'
+        return '<div class="info-card"><h3>' + m.name + (m.trained ? ' <span style="color:#1A7F5A;">(' + t('trained') + ')</span>' : '') + '</h3>'
             + '<p>d_model=' + m.config.d_model + ', layers=' + m.config.num_layers + ', heads=' + m.config.num_heads + ', vocab=' + m.config.vocab_size + '</p>'
             + '<p>' + t('datasets_count') + ': ' + (m.total_datasets || 0) + ' | ' + t('size') + ': ' + m.size_mb + ' MB</p>'
             + '<button class="btn btn-success" onclick="window.location.href=\'/download_model/' + m.name + '\'">' + t('btn_download') + '</button>'
             + '<button class="btn btn-danger" onclick="deleteModel(\'' + m.name + '\')">' + t('btn_delete') + '</button>'
             + '</div>';
-    }).join('') || '<p style="color:#888;">' + t('no_models') + '</p>';
+    }).join('') || '<p style="color:#73706A;">' + t('no_models') + '</p>';
 }
 
 async function deleteModel(name) {
@@ -1207,6 +1314,28 @@ var TRANSLATIONS = {
         autopilot_state_stopped: 'Остановлен',
         autopilot_time_budget: 'Лимит времени (минут):',
         autopilot_time_hint: '0 = без лимита. LLM подстроит кол-во итераций под время.',
+        bench_title: 'Целевые бенчмарки',
+        bench_desc: 'Впишите цели — автопилот обязан их достичь и доказать цифрами, или честно сообщить о провале. Пустая цель = не проверяем. Колонки «До обучения» и «Результат» заполняются автоматически по ходу обучения.',
+        bench_col_metric: 'Метрика',
+        bench_col_target: 'Цель',
+        bench_col_baseline: 'До обучения',
+        bench_col_result: 'Результат',
+        bench_col_status: 'Статус',
+        bench_m_overall: 'Общий балл качества',
+        bench_m_overall_hint: '0–1, выше = лучше. 0.3 — плохо, 0.5 — нормально, 0.7 — хорошо, 0.85 — отлично.',
+        bench_m_improve: 'Улучшение после обучения',
+        bench_m_improve_hint: 'Насколько % общий балл должен вырасти относительно необученной модели.',
+        bench_m_unk: 'Неизвестные слова <UNK>',
+        bench_m_unk_hint: 'Доля «мусорных» токенов в тексте. 0–1, ниже = лучше. Хорошая модель: меньше 0.1.',
+        bench_m_rep: 'Повторяемость',
+        bench_m_rep_hint: 'Насколько модель зацикливается на одних словах. 0–1, ниже = лучше. Хорошо: меньше 0.5.',
+        bench_m_vocab: 'Богатство словаря',
+        bench_m_vocab_hint: 'Сколько разных настоящих слов модель использует в тестах. Выше = лучше. Хорошо: 50+.',
+        bench_m_real: 'Доля настоящих слов',
+        bench_m_real_hint: 'Сколько слов в тексте — настоящие, а не обрывки и спецсимволы. 0–1, выше = лучше. Хорошо: 0.7+.',
+        bench_model_label: 'Модель:',
+        bench_pass: 'Цель достигнута',
+        bench_fail: 'Не достигнута',
         autopilot_quality_title: 'Целевое качество (требования к модели)',
         autopilot_quality_desc: 'Автопилот обязан доказать что достиг этих целей — или честно сказать что не смог. Пустые поля = не ограничиваем.',
         autopilot_target_score: 'Минимальный скор (0.0-1.0):',
@@ -1224,12 +1353,12 @@ var TRANSLATIONS = {
         autopilot_opt_groq: 'Groq (Бесплатно)',
         autopilot_opt_ollama_cloud: 'Ollama Cloud (GPT-OSS, GLM, Qwen)',
         autopilot_opt_local: 'Локальная / Ollama / LM Studio',
-        autopilot_help_google_ai: '<b>Google AI Studio — бесплатный Gemini (рекомендуем):</b><br><br>1. Откройте <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#667eea;text-decoration:underline;">aistudio.google.com/apikey</a> (войдите через Google)<br>2. Нажмите <b>«Create API Key»</b><br>3. Скопируйте ключ<br>4. Вставьте его в поле <b>API ключ</b> выше<br><br>💡 <b>Полностью бесплатно</b> — без карты, без оплаты. Gemini 2.5 Flash — мощная модель с огромным лимитом (1 млн токенов/мин). Идеально подходит для tool calling.',
-        autopilot_help_groq: '<b>Groq — бесплатная и быстрая LLM:</b><br><br>1. Откройте <a href="https://console.groq.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.groq.com</a> и войдите через Google (1 клик)<br>2. Перейдите в <a href="https://console.groq.com/keys" target="_blank" style="color:#667eea;text-decoration:underline;">API Keys</a><br>3. Нажмите <b>«Create API Key»</b><br>4. Скопируйте ключ (начинается с <code>gsk_...</code>)<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br>⚠️ Бесплатно, но лимит 12K токенов/мин — могут быть паузы. Если часто ошибка rate limit — используйте Google AI Studio.',
-        autopilot_help_ollama_cloud: '<b>Ollama Cloud — большие облачные модели (GPT-OSS, GLM, Qwen):</b><br><br>1. Установите Ollama локально с <a href="https://ollama.com/download" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/download</a> и войдите через <code>ollama signin</code> (или зарегистрируйтесь на сайте)<br>2. Откройте <a href="https://ollama.com/settings/keys" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/settings/keys</a><br>3. Нажмите <b>«Create new key»</b> и скопируйте ключ<br>4. Вставьте его в поле <b>API ключ</b> выше<br>5. В поле <b>Модель</b> укажите название cloud-модели, например:<br>&nbsp;&nbsp;• <code>gpt-oss:120b</code> — открытая GPT-OSS 120B (рекомендуем для tool calling)<br>&nbsp;&nbsp;• <code>gpt-oss:20b</code> — поменьше и пошустрее<br>&nbsp;&nbsp;• <code>qwen3-coder:480b</code> — для кода<br>&nbsp;&nbsp;• <code>glm-4.6:cloud</code> — если включён доступ<br>&nbsp;&nbsp;• Список всех cloud-моделей: <a href="https://ollama.com/search?c=cloud" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/search?c=cloud</a><br><br>💡 Cloud-модели запускаются на серверах Ollama — работают одинаково и с локального ПК, и с Google Colab. Удобно когда у Gemini кончились лимиты.',
-        autopilot_help_openai: '<b>OpenAI (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://platform.openai.com/signup" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/signup</a> и создайте аккаунт (или войдите через Google)<br>2. Откройте <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Нажмите кнопку <b>«+ Create new secret key»</b><br>4. Скопируйте ключ (начинается с <code>sk-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота (GPT-4o). $5 хватит на сотни запусков.',
-        autopilot_help_anthropic: '<b>Anthropic Claude (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://console.anthropic.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.anthropic.com</a> и создайте аккаунт<br>2. Откройте <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#667eea;text-decoration:underline;">Settings → API Keys</a><br>3. Нажмите <b>«Create Key»</b><br>4. Скопируйте ключ (начинается с <code>sk-ant-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота. $5 хватит на сотни запусков.',
-        autopilot_help_openai_compatible: '<b>Локальная LLM (бесплатно, но грузит ваш ПК):</b><br><br>🔑 <b>API ключ не нужен</b> — всё работает локально на вашем компьютере.<br><br><b>Вариант 1 — Ollama (проще):</b><br>1. Скачайте и установите с <a href="https://ollama.com/download" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Откройте терминал (командную строку) и выполните:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — скачает модель (~4 ГБ)<br>3. Ollama запустится автоматически после установки<br>4. Endpoint: <code>http://localhost:11434/v1</code> (уже заполнен)<br>5. В поле Модель напишите: <code>llama3</code><br><br><b>Вариант 2 — LM Studio (с интерфейсом):</b><br>1. Скачайте с <a href="https://lmstudio.ai" target="_blank" style="color:#667eea;text-decoration:underline;">lmstudio.ai</a> и установите<br>2. В программе найдите и скачайте модель (например llama3)<br>3. Перейдите во вкладку <b>«Local Server»</b> (иконка ↔ слева) → нажмите <b>«Start Server»</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. В поле Модель укажите название загруженной модели<br><br>⚠️ <b>Требует мощный ПК</b> (16GB+ RAM, лучше с видеокартой). LLM работает одновременно с обучением — может быть медленно. Рекомендуем Google Colab если ПК слабый.',
+        autopilot_help_google_ai: '<b>Google AI Studio — бесплатный Gemini (рекомендуем):</b><br><br>1. Откройте <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#C15F3C;text-decoration:underline;">aistudio.google.com/apikey</a> (войдите через Google)<br>2. Нажмите <b>«Create API Key»</b><br>3. Скопируйте ключ<br>4. Вставьте его в поле <b>API ключ</b> выше<br><br>💡 <b>Полностью бесплатно</b> — без карты, без оплаты. Gemini 2.5 Flash — мощная модель с огромным лимитом (1 млн токенов/мин). Идеально подходит для tool calling.',
+        autopilot_help_groq: '<b>Groq — бесплатная и быстрая LLM:</b><br><br>1. Откройте <a href="https://console.groq.com/login" target="_blank" style="color:#C15F3C;text-decoration:underline;">console.groq.com</a> и войдите через Google (1 клик)<br>2. Перейдите в <a href="https://console.groq.com/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">API Keys</a><br>3. Нажмите <b>«Create API Key»</b><br>4. Скопируйте ключ (начинается с <code>gsk_...</code>)<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br>⚠️ Бесплатно, но лимит 12K токенов/мин — могут быть паузы. Если часто ошибка rate limit — используйте Google AI Studio.',
+        autopilot_help_ollama_cloud: '<b>Ollama Cloud — большие облачные модели (GPT-OSS, GLM, Qwen):</b><br><br>1. Установите Ollama локально с <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> и войдите через <code>ollama signin</code> (или зарегистрируйтесь на сайте)<br>2. Откройте <a href="https://ollama.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/settings/keys</a><br>3. Нажмите <b>«Create new key»</b> и скопируйте ключ<br>4. Вставьте его в поле <b>API ключ</b> выше<br>5. В поле <b>Модель</b> укажите название cloud-модели, например:<br>&nbsp;&nbsp;• <code>gpt-oss:120b</code> — открытая GPT-OSS 120B (рекомендуем для tool calling)<br>&nbsp;&nbsp;• <code>gpt-oss:20b</code> — поменьше и пошустрее<br>&nbsp;&nbsp;• <code>qwen3-coder:480b</code> — для кода<br>&nbsp;&nbsp;• <code>glm-4.6:cloud</code> — если включён доступ<br>&nbsp;&nbsp;• Список всех cloud-моделей: <a href="https://ollama.com/search?c=cloud" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/search?c=cloud</a><br><br>💡 Cloud-модели запускаются на серверах Ollama — работают одинаково и с локального ПК, и с Google Colab. Удобно когда у Gemini кончились лимиты.',
+        autopilot_help_openai: '<b>OpenAI (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://platform.openai.com/signup" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/signup</a> и создайте аккаунт (или войдите через Google)<br>2. Откройте <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Нажмите кнопку <b>«+ Create new secret key»</b><br>4. Скопируйте ключ (начинается с <code>sk-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота (GPT-4o). $5 хватит на сотни запусков.',
+        autopilot_help_anthropic: '<b>Anthropic Claude (платный):</b><br><br><b>Где получить API ключ:</b><br>1. Откройте <a href="https://console.anthropic.com/login" target="_blank" style="color:#C15F3C;text-decoration:underline;">console.anthropic.com</a> и создайте аккаунт<br>2. Откройте <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">Settings → API Keys</a><br>3. Нажмите <b>«Create Key»</b><br>4. Скопируйте ключ (начинается с <code>sk-ant-...</code>) — он показывается только один раз!<br>5. Вставьте его в поле <b>API ключ</b> выше<br><br><b>⚠️ Нужно пополнить баланс:</b> перейдите в <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → пополните от $5<br><br>💰 Стоимость: ~$0.01–0.05 за один запуск автопилота. $5 хватит на сотни запусков.',
+        autopilot_help_openai_compatible: '<b>Локальная LLM (бесплатно, но грузит ваш ПК):</b><br><br>🔑 <b>API ключ не нужен</b> — всё работает локально на вашем компьютере.<br><br><b>Вариант 1 — Ollama (проще):</b><br>1. Скачайте и установите с <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Откройте терминал (командную строку) и выполните:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — скачает модель (~4 ГБ)<br>3. Ollama запустится автоматически после установки<br>4. Endpoint: <code>http://localhost:11434/v1</code> (уже заполнен)<br>5. В поле Модель напишите: <code>llama3</code><br><br><b>Вариант 2 — LM Studio (с интерфейсом):</b><br>1. Скачайте с <a href="https://lmstudio.ai" target="_blank" style="color:#C15F3C;text-decoration:underline;">lmstudio.ai</a> и установите<br>2. В программе найдите и скачайте модель (например llama3)<br>3. Перейдите во вкладку <b>«Local Server»</b> (иконка ↔ слева) → нажмите <b>«Start Server»</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. В поле Модель укажите название загруженной модели<br><br>⚠️ <b>Требует мощный ПК</b> (16GB+ RAM, лучше с видеокартой). LLM работает одновременно с обучением — может быть медленно. Рекомендуем Google Colab если ПК слабый.',
         btn_attach: '+ Прикрепить', btn_detach: 'Открепить',
         filter_all: 'Все',
         no_datasets: 'Нет датасетов.', no_attached: 'Нет прикреплённых.',
@@ -1384,6 +1513,28 @@ var TRANSLATIONS = {
         autopilot_state_stopped: 'Stopped',
         autopilot_time_budget: 'Time limit (minutes):',
         autopilot_time_hint: '0 = no limit. LLM will adjust iterations to fit the time.',
+        bench_title: 'Target benchmarks',
+        bench_desc: 'Enter your targets — the autopilot must reach them and prove it with numbers, or honestly report failure. Empty target = not checked. The Baseline and Result columns fill in automatically as training progresses.',
+        bench_col_metric: 'Metric',
+        bench_col_target: 'Target',
+        bench_col_baseline: 'Baseline',
+        bench_col_result: 'Result',
+        bench_col_status: 'Status',
+        bench_m_overall: 'Overall quality score',
+        bench_m_overall_hint: '0–1, higher = better. 0.3 — bad, 0.5 — okay, 0.7 — good, 0.85 — excellent.',
+        bench_m_improve: 'Improvement after training',
+        bench_m_improve_hint: 'How much (%) the overall score must grow vs the untrained model.',
+        bench_m_unk: 'Unknown words <UNK>',
+        bench_m_unk_hint: 'Share of "garbage" tokens in output. 0–1, lower = better. A good model: below 0.1.',
+        bench_m_rep: 'Repetitiveness',
+        bench_m_rep_hint: 'How much the model loops on the same words. 0–1, lower = better. Good: below 0.5.',
+        bench_m_vocab: 'Vocabulary richness',
+        bench_m_vocab_hint: 'How many distinct real words the model uses in tests. Higher = better. Good: 50+.',
+        bench_m_real: 'Real-word ratio',
+        bench_m_real_hint: 'Share of words that are real words, not fragments or special tokens. 0–1, higher = better. Good: 0.7+.',
+        bench_model_label: 'Model:',
+        bench_pass: 'Target met',
+        bench_fail: 'Not met',
         autopilot_quality_title: 'Quality targets (model requirements)',
         autopilot_quality_desc: 'The autopilot must PROVE it hit these targets — or honestly report that it did not. Empty fields = no constraint.',
         autopilot_target_score: 'Minimum score (0.0-1.0):',
@@ -1401,12 +1552,12 @@ var TRANSLATIONS = {
         autopilot_opt_groq: 'Groq (Free)',
         autopilot_opt_ollama_cloud: 'Ollama Cloud (GPT-OSS, GLM, Qwen)',
         autopilot_opt_local: 'Local / Ollama / LM Studio',
-        autopilot_help_google_ai: '<b>Google AI Studio — free Gemini (recommended):</b><br><br>1. Open <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#667eea;text-decoration:underline;">aistudio.google.com/apikey</a> (sign in with Google)<br>2. Click <b>"Create API Key"</b><br>3. Copy the key<br>4. Paste it into the <b>API Key</b> field above<br><br>💡 <b>Completely free</b> — no credit card needed. Gemini 2.5 Flash is a powerful model with huge limits (1M tokens/min). Perfect for tool calling.',
-        autopilot_help_groq: '<b>Groq — free and fast LLM:</b><br><br>1. Open <a href="https://console.groq.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.groq.com</a> and sign in with Google (1 click)<br>2. Go to <a href="https://console.groq.com/keys" target="_blank" style="color:#667eea;text-decoration:underline;">API Keys</a><br>3. Click <b>"Create API Key"</b><br>4. Copy the key (starts with <code>gsk_...</code>)<br>5. Paste it into the <b>API Key</b> field above<br><br>⚠️ Free but 12K tokens/min limit — may cause pauses. If you get rate limit errors, try Google AI Studio instead.',
-        autopilot_help_ollama_cloud: '<b>Ollama Cloud — large cloud models (GPT-OSS, GLM, Qwen):</b><br><br>1. Install Ollama locally from <a href="https://ollama.com/download" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/download</a> and run <code>ollama signin</code> (or sign up on the website)<br>2. Open <a href="https://ollama.com/settings/keys" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/settings/keys</a><br>3. Click <b>"Create new key"</b> and copy the key<br>4. Paste it into the <b>API Key</b> field above<br>5. In the <b>Model</b> field enter the cloud model name, for example:<br>&nbsp;&nbsp;• <code>gpt-oss:120b</code> — open GPT-OSS 120B (recommended for tool calling)<br>&nbsp;&nbsp;• <code>gpt-oss:20b</code> — smaller and faster<br>&nbsp;&nbsp;• <code>qwen3-coder:480b</code> — for code<br>&nbsp;&nbsp;• <code>glm-4.6:cloud</code> — if access is enabled<br>&nbsp;&nbsp;• Full list: <a href="https://ollama.com/search?c=cloud" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/search?c=cloud</a><br><br>💡 Cloud models run on Ollama\'s servers — works the same from local PC and Google Colab. Handy when Gemini quota runs out.',
-        autopilot_help_openai: '<b>OpenAI (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://platform.openai.com/signup" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/signup</a> and create an account (or sign in with Google)<br>2. Open <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#667eea;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Click the <b>"+ Create new secret key"</b> button<br>4. Copy the key (starts with <code>sk-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run (GPT-4o). $5 is enough for hundreds of runs.',
-        autopilot_help_anthropic: '<b>Anthropic Claude (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://console.anthropic.com/login" target="_blank" style="color:#667eea;text-decoration:underline;">console.anthropic.com</a> and create an account<br>2. Open <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#667eea;text-decoration:underline;">Settings → API Keys</a><br>3. Click <b>"Create Key"</b><br>4. Copy the key (starts with <code>sk-ant-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#667eea;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run. $5 is enough for hundreds of runs.',
-        autopilot_help_openai_compatible: '<b>Local LLM (free, but uses your PC resources):</b><br><br>🔑 <b>No API key needed</b> — everything runs locally on your computer.<br><br><b>Option 1 — Ollama (easier):</b><br>1. Download and install from <a href="https://ollama.com/download" target="_blank" style="color:#667eea;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Open a terminal and run:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — downloads the model (~4 GB)<br>3. Ollama starts automatically after installation<br>4. Endpoint: <code>http://localhost:11434/v1</code> (already filled in)<br>5. In the Model field type: <code>llama3</code><br><br><b>Option 2 — LM Studio (has a GUI):</b><br>1. Download from <a href="https://lmstudio.ai" target="_blank" style="color:#667eea;text-decoration:underline;">lmstudio.ai</a> and install<br>2. Search and download a model in the app (e.g. llama3)<br>3. Go to the <b>"Local Server"</b> tab (↔ icon on the left) → click <b>"Start Server"</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. In the Model field enter the name of the downloaded model<br><br>⚠️ <b>Requires a powerful PC</b> (16GB+ RAM, GPU recommended). LLM runs alongside model training — may be slow. We recommend Google Colab if your PC is not powerful enough.',
+        autopilot_help_google_ai: '<b>Google AI Studio — free Gemini (recommended):</b><br><br>1. Open <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#C15F3C;text-decoration:underline;">aistudio.google.com/apikey</a> (sign in with Google)<br>2. Click <b>"Create API Key"</b><br>3. Copy the key<br>4. Paste it into the <b>API Key</b> field above<br><br>💡 <b>Completely free</b> — no credit card needed. Gemini 2.5 Flash is a powerful model with huge limits (1M tokens/min). Perfect for tool calling.',
+        autopilot_help_groq: '<b>Groq — free and fast LLM:</b><br><br>1. Open <a href="https://console.groq.com/login" target="_blank" style="color:#C15F3C;text-decoration:underline;">console.groq.com</a> and sign in with Google (1 click)<br>2. Go to <a href="https://console.groq.com/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">API Keys</a><br>3. Click <b>"Create API Key"</b><br>4. Copy the key (starts with <code>gsk_...</code>)<br>5. Paste it into the <b>API Key</b> field above<br><br>⚠️ Free but 12K tokens/min limit — may cause pauses. If you get rate limit errors, try Google AI Studio instead.',
+        autopilot_help_ollama_cloud: '<b>Ollama Cloud — large cloud models (GPT-OSS, GLM, Qwen):</b><br><br>1. Install Ollama locally from <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> and run <code>ollama signin</code> (or sign up on the website)<br>2. Open <a href="https://ollama.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/settings/keys</a><br>3. Click <b>"Create new key"</b> and copy the key<br>4. Paste it into the <b>API Key</b> field above<br>5. In the <b>Model</b> field enter the cloud model name, for example:<br>&nbsp;&nbsp;• <code>gpt-oss:120b</code> — open GPT-OSS 120B (recommended for tool calling)<br>&nbsp;&nbsp;• <code>gpt-oss:20b</code> — smaller and faster<br>&nbsp;&nbsp;• <code>qwen3-coder:480b</code> — for code<br>&nbsp;&nbsp;• <code>glm-4.6:cloud</code> — if access is enabled<br>&nbsp;&nbsp;• Full list: <a href="https://ollama.com/search?c=cloud" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/search?c=cloud</a><br><br>💡 Cloud models run on Ollama\'s servers — works the same from local PC and Google Colab. Handy when Gemini quota runs out.',
+        autopilot_help_openai: '<b>OpenAI (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://platform.openai.com/signup" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/signup</a> and create an account (or sign in with Google)<br>2. Open <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">platform.openai.com/api-keys</a><br>3. Click the <b>"+ Create new secret key"</b> button<br>4. Copy the key (starts with <code>sk-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://platform.openai.com/account/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run (GPT-4o). $5 is enough for hundreds of runs.',
+        autopilot_help_anthropic: '<b>Anthropic Claude (paid):</b><br><br><b>How to get an API key:</b><br>1. Open <a href="https://console.anthropic.com/login" target="_blank" style="color:#C15F3C;text-decoration:underline;">console.anthropic.com</a> and create an account<br>2. Open <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:#C15F3C;text-decoration:underline;">Settings → API Keys</a><br>3. Click <b>"Create Key"</b><br>4. Copy the key (starts with <code>sk-ant-...</code>) — it is shown only once!<br>5. Paste it into the <b>API Key</b> field above<br><br><b>⚠️ You need to add funds:</b> go to <a href="https://console.anthropic.com/settings/billing" target="_blank" style="color:#C15F3C;text-decoration:underline;">Billing</a> → Add payment method → add at least $5<br><br>💰 Cost: ~$0.01–0.05 per autopilot run. $5 is enough for hundreds of runs.',
+        autopilot_help_openai_compatible: '<b>Local LLM (free, but uses your PC resources):</b><br><br>🔑 <b>No API key needed</b> — everything runs locally on your computer.<br><br><b>Option 1 — Ollama (easier):</b><br>1. Download and install from <a href="https://ollama.com/download" target="_blank" style="color:#C15F3C;text-decoration:underline;">ollama.com/download</a> (Windows/Mac/Linux)<br>2. Open a terminal and run:<br>&nbsp;&nbsp;&nbsp;<code>ollama pull llama3</code> — downloads the model (~4 GB)<br>3. Ollama starts automatically after installation<br>4. Endpoint: <code>http://localhost:11434/v1</code> (already filled in)<br>5. In the Model field type: <code>llama3</code><br><br><b>Option 2 — LM Studio (has a GUI):</b><br>1. Download from <a href="https://lmstudio.ai" target="_blank" style="color:#C15F3C;text-decoration:underline;">lmstudio.ai</a> and install<br>2. Search and download a model in the app (e.g. llama3)<br>3. Go to the <b>"Local Server"</b> tab (↔ icon on the left) → click <b>"Start Server"</b><br>4. Endpoint: <code>http://localhost:1234/v1</code><br>5. In the Model field enter the name of the downloaded model<br><br>⚠️ <b>Requires a powerful PC</b> (16GB+ RAM, GPU recommended). LLM runs alongside model training — may be slow. We recommend Google Colab if your PC is not powerful enough.',
         btn_attach: '+ Attach', btn_detach: 'Detach',
         filter_all: 'All',
         no_datasets: 'No datasets.', no_attached: 'No attached datasets.',
@@ -1486,9 +1637,13 @@ function startAutopilot() {
 
     var timeBudget = parseInt(document.getElementById('ap_time_budget').value) || 0;
 
-    // Quality spec — optional user-defined targets
+    // Quality spec — optional user-defined targets (benchmark table)
     var targetScoreRaw = document.getElementById('ap_target_score').value;
     var minImprovRaw = document.getElementById('ap_min_improvement').value;
+    var maxUnkRaw = document.getElementById('ap_max_unk').value;
+    var maxRepRaw = document.getElementById('ap_max_rep').value;
+    var minVocabRaw = document.getElementById('ap_min_vocab').value;
+    var minRealRaw = document.getElementById('ap_min_realwords').value;
     var mustInclude = (document.getElementById('ap_must_include').value || '').trim();
     var mustAvoid = (document.getElementById('ap_must_avoid').value || '').trim();
     var customPromptsRaw = (document.getElementById('ap_custom_prompts').value || '').trim();
@@ -1505,6 +1660,10 @@ function startAutopilot() {
         time_budget: timeBudget,
         target_score: targetScoreRaw !== '' ? parseFloat(targetScoreRaw) : null,
         min_improvement_pct: minImprovRaw !== '' ? parseFloat(minImprovRaw) : null,
+        max_unk_ratio: maxUnkRaw !== '' ? parseFloat(maxUnkRaw) : null,
+        max_repetition: maxRepRaw !== '' ? parseFloat(maxRepRaw) : null,
+        min_vocabulary: minVocabRaw !== '' ? parseInt(minVocabRaw) : null,
+        min_real_word_ratio: minRealRaw !== '' ? parseFloat(minRealRaw) : null,
         must_include: mustInclude || null,
         must_avoid: mustAvoid || null,
         custom_prompts: customPrompts
@@ -1519,6 +1678,7 @@ function startAutopilot() {
             document.getElementById('ap_log_box').style.display = 'block';
             document.getElementById('ap_log_entries').innerHTML = '';
             document.getElementById('ap_state_box').style.display = 'block';
+            resetBenchTable();
             autopilotLogSince = 0;
             autopilotPollInterval = setInterval(pollAutopilot, 2000);
         } else {
@@ -1549,6 +1709,8 @@ function pollAutopilot() {
         autopilotLogSince = data.log_count;
         container.scrollTop = container.scrollHeight;
 
+        updateBenchTable(data.scoreboard, data.current_model);
+
         if (['completed','error','stopped','idle'].indexOf(data.state) !== -1) {
             clearInterval(autopilotPollInterval);
             autopilotPollInterval = null;
@@ -1556,6 +1718,81 @@ function pollAutopilot() {
             document.getElementById('ap_stop_btn').style.display = 'none';
         }
     });
+}
+
+// ─── Benchmark target table (Anthropic-style scoreboard) ───
+
+function resetBenchTable() {
+    ['overall','improvement','unk','rep','vocab','real'].forEach(function(k) {
+        var res = document.getElementById('ap_res_' + k);
+        if (res) res.textContent = '—';
+        var st = document.getElementById('ap_st_' + k);
+        if (st) { st.textContent = '—'; st.className = 'bench-chip bench-chip-pending'; }
+    });
+    ['overall','unk','rep','vocab','real'].forEach(function(k) {
+        var base = document.getElementById('ap_base_' + k);
+        if (base) base.textContent = '—';
+    });
+    document.getElementById('ap_bench_model_line').style.display = 'none';
+}
+
+function fmtBenchNum(v, digits) {
+    if (v === null || v === undefined) return '—';
+    if (typeof v !== 'number') return String(v);
+    return Number.isInteger(v) && digits === 0 ? String(v) : v.toFixed(digits === undefined ? 2 : digits);
+}
+
+function setBenchChip(id, passed) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (passed === null) { el.textContent = '—'; el.className = 'bench-chip bench-chip-pending'; }
+    else if (passed) { el.textContent = '✓ ' + t('bench_pass'); el.className = 'bench-chip bench-chip-pass'; }
+    else { el.textContent = '✗ ' + t('bench_fail'); el.className = 'bench-chip bench-chip-fail'; }
+}
+
+function updateBenchTable(sb, modelName) {
+    if (!sb) return;
+    if (modelName) {
+        document.getElementById('ap_bench_model_line').style.display = 'block';
+        document.getElementById('ap_bench_model_name').textContent = modelName;
+    }
+    var base = sb.baseline ? (sb.baseline.scores || {}) : {};
+    var latest = sb.latest ? (sb.latest.scores || {}) : {};
+    var baseOverall = sb.baseline ? sb.baseline.overall_score : null;
+    var latestOverall = sb.latest ? sb.latest.overall_score : null;
+
+    // Baseline column
+    document.getElementById('ap_base_overall').textContent = fmtBenchNum(baseOverall, 2);
+    document.getElementById('ap_base_unk').textContent = fmtBenchNum(base.unk_ratio, 2);
+    document.getElementById('ap_base_rep').textContent = fmtBenchNum(base.avg_repetition, 2);
+    document.getElementById('ap_base_vocab').textContent = fmtBenchNum(base.vocabulary_diversity, 0);
+    document.getElementById('ap_base_real').textContent = fmtBenchNum(base.real_word_ratio, 2);
+
+    // Result column
+    document.getElementById('ap_res_overall').textContent = fmtBenchNum(latestOverall, 2);
+    document.getElementById('ap_res_improvement').textContent =
+        (sb.improvement_pct === null || sb.improvement_pct === undefined) ? '—'
+        : ((sb.improvement_pct >= 0 ? '+' : '') + sb.improvement_pct.toFixed(1) + '%');
+    document.getElementById('ap_res_unk').textContent = fmtBenchNum(latest.unk_ratio, 2);
+    document.getElementById('ap_res_rep').textContent = fmtBenchNum(latest.avg_repetition, 2);
+    document.getElementById('ap_res_vocab').textContent = fmtBenchNum(latest.vocabulary_diversity, 0);
+    document.getElementById('ap_res_real').textContent = fmtBenchNum(latest.real_word_ratio, 2);
+
+    // Status chips: only judge once a post-baseline result exists
+    var hasResult = sb.latest !== null && sb.latest !== undefined;
+    function judge(id, targetRaw, actual, dirMax) {
+        if (targetRaw === '' || targetRaw === null || !hasResult || actual === null || actual === undefined) {
+            setBenchChip(id, null); return;
+        }
+        var tval = parseFloat(targetRaw);
+        setBenchChip(id, dirMax ? (actual <= tval) : (actual >= tval));
+    }
+    judge('ap_st_overall', document.getElementById('ap_target_score').value, latestOverall, false);
+    judge('ap_st_improvement', document.getElementById('ap_min_improvement').value, sb.improvement_pct, false);
+    judge('ap_st_unk', document.getElementById('ap_max_unk').value, latest.unk_ratio, true);
+    judge('ap_st_rep', document.getElementById('ap_max_rep').value, latest.avg_repetition, true);
+    judge('ap_st_vocab', document.getElementById('ap_min_vocab').value, latest.vocabulary_diversity, false);
+    judge('ap_st_real', document.getElementById('ap_min_realwords').value, latest.real_word_ratio, false);
 }
 
 function stopAutopilot() {

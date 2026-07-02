@@ -63,6 +63,7 @@ SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small tran
 16. Call check_quality_targets(model_name). This returns per-criterion pass/fail for:
     - target_score (minimum overall_score the user accepts)
     - min_improvement_pct (minimum improvement vs baseline)
+    - max_unk_ratio / max_repetition / min_vocabulary / min_real_word_ratio (per-metric benchmark targets)
     - must_include / must_avoid (qualitative — YOU judge from samples)
 17. If `all_numeric_checks_passed: false` → you CANNOT mark is_final=true. You MUST iterate.
 18. For qualitative checks (must_include / must_avoid), examine the benchmark samples you already have. If the model outputs clearly violate must_avoid (e.g. pure gibberish, wrong language, excessive <UNK>) — treat it as failure and iterate.
@@ -103,6 +104,10 @@ SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small tran
 
 ## Proof-of-improvement bar
 Meaningful improvement = `overall_delta` > 0.02 (2%+ on the composite score). Smaller than that is noise — report it honestly as "no meaningful improvement" and describe what you would try next.
+
+## Hardware
+{hardware_info}
+Size the model to the hardware: on CPU or <4 GB GPU prefer "Quick test"/"Short creative" presets and fewer iterations; do NOT pick "Quality text" params on a weak machine — training will crawl and the run will time out.
 
 ## Time Budget
 {time_budget_info}
@@ -406,30 +411,45 @@ class LLMProvider:
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    def _trim_messages(self, messages: list, max_messages: int = 12) -> list:
-        """Keep system message + last N messages to avoid token overflow."""
+    def _trim_messages(self, messages: list, max_messages: int = 16) -> list:
+        """Keep system message + the FIRST user message (goal & quality targets)
+        + last N messages to avoid token overflow.
+
+        The first user message is critical: it contains the user's goal and hard
+        quality targets. Dropping it made small LLMs forget the task mid-run."""
         # Filter out any non-dict entries (safety check)
         messages = [m for m in messages if isinstance(m, dict)]
-        if len(messages) <= max_messages + 1:
+        if len(messages) <= max_messages + 2:
             return messages
         system_msgs = [m for m in messages if m.get("role") == "system"]
         non_system = [m for m in messages if m.get("role") != "system"]
-        # Keep last max_messages non-system messages
-        trimmed = non_system[-max_messages:]
-        # Aggressively truncate tool results to save tokens
+
+        # Always preserve the first user message (the goal)
+        goal_msg = next((m for m in non_system if m.get("role") == "user"), None)
+        tail = non_system[-max_messages:]
+        if goal_msg is not None and goal_msg not in tail:
+            tail = [goal_msg] + tail
+
+        # If the tail starts with an orphaned tool result (its tool_call was trimmed
+        # away), drop leading tool messages — some APIs reject unpaired tool results.
+        while tail and tail[0].get("role") == "tool":
+            tail.pop(0)
+
+        # Truncate long tool results to save tokens (but keep enough to be useful —
+        # dataset IDs, benchmark scores and error details must survive trimming)
         result = []
-        for m in trimmed:
+        for m in tail:
             content = m.get("content", "")
             if isinstance(content, list):
                 content = json.dumps(content, ensure_ascii=False)
             elif not isinstance(content, str):
                 content = str(content) if content else ""
-            if m.get("role") == "tool" and len(content) > 300:
+            if m.get("role") == "tool" and len(content) > 1200:
                 m = dict(m)
-                m["content"] = content[:300] + "...(truncated)"
-            elif m.get("role") == "assistant" and len(content) > 500:
+                m["content"] = content[:1200] + "...(truncated)"
+            elif m.get("role") == "assistant" and len(content) > 800:
                 m = dict(m)
-                m["content"] = content[:500] + "...(truncated)"
+                m["content"] = content[:800] + "...(truncated)"
             result.append(m)
         return system_msgs + result
 
@@ -448,7 +468,7 @@ class LLMProvider:
         body = {
             "model": self.model,
             "messages": trimmed,
-            "max_tokens": 1024,
+            "max_tokens": 2048,
         }
         if tools:
             body["tools"] = AUTOPILOT_TOOLS_OPENAI
@@ -805,9 +825,17 @@ class ToolExecutor:
         }
         handler = dispatch.get(tool_name)
         if not handler:
-            return {"error": f"Unknown tool: {tool_name}"}
+            # Help small LLMs recover: show the valid tool names instead of a dead end
+            return {"error": f"Unknown tool: {tool_name}",
+                    "valid_tools": sorted(dispatch.keys()),
+                    "hint": "Call one of valid_tools with correct arguments."}
         try:
             return handler(**arguments)
+        except TypeError as e:
+            # Wrong/missing arguments — tell the model exactly what went wrong
+            return {"error": f"{tool_name}: bad arguments — {str(e)}",
+                    "arguments_received": list(arguments.keys()),
+                    "hint": "Re-check the tool schema and call again with correct argument names."}
         except Exception as e:
             return {"error": f"{tool_name} failed: {str(e)}"}
 
@@ -859,6 +887,27 @@ class ToolExecutor:
             # Import here to avoid circular
             from model import CustomTransformerLM, count_parameters
             from tokenizer import SimpleTokenizer
+            import re as _re
+
+            # Sanitize name — it becomes a directory on disk
+            name = _re.sub(r"[^A-Za-z0-9_\-]", "_", str(name).strip())[:60]
+            if not name:
+                return {"error": "Model name is empty after sanitization. Use letters, digits, _ or -."}
+
+            # Clamp params to sane ranges so a confused LLM can't create a monster
+            notes = []
+            vocab_size = max(1000, min(int(vocab_size), 50000))
+            d_model = max(64, min(int(d_model), 1024))
+            num_layers = max(1, min(int(num_layers), 16))
+            num_heads = max(1, min(int(num_heads), 32))
+            d_ff = max(128, min(int(d_ff), 4096))
+            max_seq_len = max(64, min(int(max_seq_len), 1024))
+
+            # d_model must be divisible by num_heads — auto-fix instead of crashing
+            if d_model % num_heads != 0:
+                fixed = next((h for h in range(num_heads, 0, -1) if d_model % h == 0), 1)
+                notes.append(f"num_heads adjusted {num_heads} -> {fixed} (d_model={d_model} must be divisible by num_heads)")
+                num_heads = fixed
 
             tokenizer = SimpleTokenizer(vocab_size=vocab_size)
             model = CustomTransformerLM(
@@ -898,7 +947,10 @@ class ToolExecutor:
                 except Exception:
                     pass
 
-            return {"status": "success", "model_name": name, "parameters": params, "config": config}
+            result = {"status": "success", "model_name": name, "parameters": params, "config": config}
+            if notes:
+                result["adjustments"] = notes
+            return result
         except Exception as e:
             return {"error": f"Failed to create model: {str(e)}"}
 
@@ -916,6 +968,18 @@ class ToolExecutor:
                         batch_size: int = 16, learning_rate: float = 3e-4) -> dict:
         if self.training_status.get("is_training"):
             return {"error": "Training is already in progress. Wait for it to finish."}
+
+        # Fail fast with a clear message instead of a silent dead training thread
+        model_dir = self.models_dir / model_name
+        if not model_dir.exists():
+            return {"error": f"Model '{model_name}' does not exist. Call create_model first."}
+        try:
+            attached_now = self.dm.get_attached_datasets(model_name)
+        except Exception:
+            attached_now = []
+        if not attached_now:
+            return {"error": f"Model '{model_name}' has 0 attached datasets. "
+                             f"Call attach_dataset before start_training."}
 
         try:
             # Build a config-like object for train_model_background
@@ -938,13 +1002,7 @@ class ToolExecutor:
             # Record training run in history (finalized when training ends)
             if self.history is not None:
                 try:
-                    # Collect attached datasets if dataset manager exposes them
-                    datasets = []
-                    try:
-                        attached = self.dm.get_attached(model_name) if hasattr(self.dm, "get_attached") else []
-                        datasets = [d.get("filename") if isinstance(d, dict) else str(d) for d in attached]
-                    except Exception:
-                        pass
+                    datasets = [str(d) for d in attached_now]
                     run_id = self.history.record_run(
                         model_name=model_name, run_type="train",
                         config={"max_iterations": max_iterations,
@@ -977,6 +1035,8 @@ class ToolExecutor:
         s = self.training_status
         return {
             "is_training": s.get("is_training", False),
+            "phase": s.get("phase", "idle"),  # preparing | training | idle
+            "error": s.get("error"),
             "current_iteration": s.get("current_iteration", 0),
             "max_iterations": s.get("max_iterations", 0),
             "current_loss": round(s.get("current_loss", 0), 4),
@@ -1280,6 +1340,41 @@ class ToolExecutor:
                 if not passed:
                     numeric_passed = False
 
+        # Per-metric benchmark targets (from the UI benchmark table)
+        latest_scores = latest["benchmark"].get("scores", {}) or {}
+        metric_specs = [
+            # (spec key, scores key, direction: "max" = actual must be <= target)
+            ("max_unk_ratio", "unk_ratio", "max"),
+            ("max_repetition", "avg_repetition", "max"),
+            ("min_vocabulary", "vocabulary_diversity", "min"),
+            ("min_real_word_ratio", "real_word_ratio", "min"),
+        ]
+        for spec_key, score_key, direction in metric_specs:
+            target_val = spec.get(spec_key)
+            if target_val is None:
+                continue
+            actual_val = latest_scores.get(score_key)
+            if actual_val is None:
+                checks.append({
+                    "criterion": spec_key, "target": target_val, "actual": None,
+                    "passed": False,
+                    "detail": f"Metric '{score_key}' missing from latest benchmark — re-run run_benchmark."
+                })
+                numeric_passed = False
+                continue
+            if direction == "max":
+                passed = actual_val <= target_val
+                detail = f"Need ≤ {target_val}, got {actual_val}"
+            else:
+                passed = actual_val >= target_val
+                detail = f"Need ≥ {target_val}, got {actual_val}"
+            checks.append({
+                "criterion": spec_key, "target": target_val,
+                "actual": actual_val, "passed": passed, "detail": detail
+            })
+            if not passed:
+                numeric_passed = False
+
         # Qualitative checks — surface samples to LLM for judgment
         if spec.get("must_include"):
             checks.append({
@@ -1473,7 +1568,8 @@ class LLMAutopilot:
         self.stop_requested = False
         self._thread = None
 
-    def start(self, user_goal: str, time_budget_minutes: int = 0, quality_spec: dict = None):
+    def start(self, user_goal: str, time_budget_minutes: int = 0, quality_spec: dict = None,
+              hardware_info: str = ""):
         """Start the autopilot in a background thread."""
         self.state = "planning"
         self.stop_requested = False
@@ -1481,6 +1577,7 @@ class LLMAutopilot:
         self.messages = []
         self.time_budget = time_budget_minutes
         self.quality_spec = quality_spec or {}
+        self.hardware_info = hardware_info or "Unknown hardware. Assume a weak CPU-only machine and prefer small models."
         # Share spec with executor so design_benchmark / check_quality_targets can read it
         self.executor.quality_spec = self.quality_spec
         self._thread = threading.Thread(target=self._run, args=(user_goal,), daemon=True)
@@ -1489,11 +1586,21 @@ class LLMAutopilot:
     def stop(self):
         self.stop_requested = True
 
+    def current_model(self):
+        """Name of the model this autopilot run touched last (for the UI scoreboard)."""
+        try:
+            keys = list(self.executor._last_run_id.keys())
+            return keys[-1] if keys else None
+        except Exception:
+            return None
+
     def get_status(self) -> dict:
         return {
             "state": self.state,
             "log": self.log,
-            "log_count": len(self.log)
+            "log_count": len(self.log),
+            "current_model": self.current_model(),
+            "quality_spec": self.quality_spec
         }
 
     def _log(self, log_type: str, content: str):
@@ -1513,6 +1620,7 @@ class LLMAutopilot:
             time_info = "No time limit set. Focus on quality — use enough iterations for good results (at least 3000-5000)."
 
         system_prompt = SYSTEM_PROMPT.replace("{time_budget_info}", time_info)
+        system_prompt = system_prompt.replace("{hardware_info}", getattr(self, "hardware_info", "Unknown hardware."))
 
         # Build quality spec block for the first user message
         spec = self.quality_spec or {}
@@ -1521,6 +1629,14 @@ class LLMAutopilot:
             spec_lines.append(f"- TARGET overall_score: ≥ {spec['target_score']} (composite score in [0..1]; higher=better)")
         if spec.get("min_improvement_pct") is not None:
             spec_lines.append(f"- MINIMUM improvement vs baseline: ≥ {spec['min_improvement_pct']}%")
+        if spec.get("max_unk_ratio") is not None:
+            spec_lines.append(f"- MAXIMUM unk_ratio (share of <UNK> tokens): ≤ {spec['max_unk_ratio']}")
+        if spec.get("max_repetition") is not None:
+            spec_lines.append(f"- MAXIMUM avg_repetition: ≤ {spec['max_repetition']}")
+        if spec.get("min_vocabulary") is not None:
+            spec_lines.append(f"- MINIMUM vocabulary_diversity (unique words in samples): ≥ {spec['min_vocabulary']}")
+        if spec.get("min_real_word_ratio") is not None:
+            spec_lines.append(f"- MINIMUM real_word_ratio: ≥ {spec['min_real_word_ratio']}")
         if spec.get("must_include"):
             spec_lines.append(f"- Output MUST include/exhibit: {spec['must_include']}")
         if spec.get("must_avoid"):
@@ -1681,7 +1797,7 @@ class LLMAutopilot:
         wall_clock_limit = (budget_min * 60 + 300) if budget_min > 0 else 7200  # +5min grace
 
         # Stall detection: no iteration change for N seconds → force-stop
-        stall_timeout = 180  # 3 minutes of flatline
+        stall_timeout = 300  # 5 minutes of flatline (weak CPUs need headroom)
 
         while not self.stop_requested:
             # Sleep in 1-second chunks so stop is responsive
@@ -1695,9 +1811,24 @@ class LLMAutopilot:
             status = self.executor.execute("check_training_status", {})
 
             if not status.get("is_training"):
-                self._log("status", "Training completed!")
-                # Finalize training record in history
+                train_error = status.get("error")
                 self._finalize_training_in_history(status, int(now - started_at))
+                if train_error:
+                    # Training FAILED — tell the LLM the truth so it can fix the cause,
+                    # instead of benchmarking a model that never trained.
+                    self._log("error", f"Training failed: {train_error}")
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            f"TRAINING FAILED before/at iteration {status.get('current_iteration')}. "
+                            f"Error: {train_error}. "
+                            f"Do NOT run the after-train benchmark. Diagnose the cause "
+                            f"(missing datasets? bad parameters?), fix it, and retry start_training. "
+                            f"If unfixable, report honest failure via report_to_user(is_final=true)."
+                        )
+                    })
+                    return
+                self._log("status", "Training completed!")
                 self.messages.append({
                     "role": "user",
                     "content": (
@@ -1749,6 +1880,29 @@ class LLMAutopilot:
                 iter_per_sec = iter_delta / max(time_delta, 0.1)
                 last_progress_iter = cur_iter
                 last_progress_time = now
+            elif status.get("phase") == "preparing":
+                # Dataset loading / tokenizer training on a weak PC can legitimately
+                # take many minutes before iteration 0 — don't treat it as a stall.
+                iter_per_sec = 0
+                last_progress_time = now
+                prep_duration = now - started_at
+                if prep_duration > 1800:  # 30 min of preparation = something is wrong
+                    self._log("status", f"Preparation phase exceeded {int(prep_duration/60)} min. Force-stopping.")
+                    try:
+                        self.executor.execute("stop_training", {})
+                    except Exception:
+                        pass
+                    time.sleep(3)
+                    self._finalize_training_in_history(status, int(prep_duration))
+                    self.messages.append({
+                        "role": "user",
+                        "content": (
+                            f"Training never left the preparation phase after {int(prep_duration/60)} minutes "
+                            f"and was stopped. The dataset may be too large for this machine. "
+                            f"Try a smaller dataset or smaller model, then retry start_training."
+                        )
+                    })
+                    return
             else:
                 # No progress since last check
                 iter_per_sec = 0

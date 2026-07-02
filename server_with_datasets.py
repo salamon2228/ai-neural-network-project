@@ -59,6 +59,8 @@ model_history = ModelHistory(MEMORY_DIR / "model_history.json")
 
 training_status = {
     "is_training": False,
+    "phase": "idle",  # idle | preparing | training
+    "error": None,
     "current_iteration": 0,
     "max_iterations": 0,
     "current_loss": 0.0,
@@ -151,6 +153,10 @@ class AutopilotConfig(BaseModel):
     # Quality spec — hard targets the autopilot must prove or honestly fail
     target_score: Optional[float] = None          # min acceptable overall_score [0..1]
     min_improvement_pct: Optional[float] = None   # min improvement vs baseline in %
+    max_unk_ratio: Optional[float] = None         # max share of <UNK> tokens in output
+    max_repetition: Optional[float] = None        # max avg_repetition [0..1]
+    min_vocabulary: Optional[int] = None          # min unique real words across samples
+    min_real_word_ratio: Optional[float] = None   # min share of real words in output
     must_include: Optional[str] = None            # free-form: what output MUST have
     must_avoid: Optional[str] = None              # free-form: what output MUST NOT have
     custom_prompts: Optional[List[str]] = None    # user-supplied benchmark prompts
@@ -172,6 +178,17 @@ async def read_root():
 
 @app.post("/create_model")
 async def create_model(config: ModelConfig):
+    # Friendly validation — non-programmers should get a clear message, not a stack trace
+    safe_name = re.sub(r"[^A-Za-z0-9_\-]", "_", config.name.strip())[:60]
+    if not safe_name:
+        raise HTTPException(status_code=400,
+                            detail="Model name is empty or invalid. Use letters, digits, _ or -.")
+    config.name = safe_name
+    if config.d_model % config.num_heads != 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"d_model ({config.d_model}) must be divisible by num_heads ({config.num_heads}). "
+                   f"Try num_heads = {next((h for h in range(config.num_heads, 0, -1) if config.d_model % h == 0), 1)}.")
     try:
         tokenizer = SimpleTokenizer(vocab_size=config.vocab_size)
 
@@ -480,6 +497,8 @@ def train_model_background(config: TrainingConfig):
 
     try:
         training_status["is_training"] = True
+        training_status["phase"] = "preparing"
+        training_status["error"] = None
         training_status["model_name"] = config.model_name
         training_status["max_iterations"] = config.max_iterations
 
@@ -511,6 +530,9 @@ def train_model_background(config: TrainingConfig):
         if len(texts) == 0:
             print("ERROR: No attached datasets! Attach datasets first.")
             training_status["is_training"] = False
+            training_status["phase"] = "idle"
+            training_status["error"] = ("No training data: 0 attached datasets (or all dataset files "
+                                        "are missing/empty). Attach datasets and retry.")
             return
 
         print(f"Loaded {len(texts)} text chunks from attached datasets")
@@ -597,14 +619,30 @@ def train_model_background(config: TrainingConfig):
             resume_from=config.resume_from
         )
 
-        # Сохраняем финальную модель
-        torch.save(model.state_dict(), model_dir / "model_trained.pt")
+        # Сохраняем финальную модель как ПОЛНЫЙ чекпоинт (веса + конфиг + токенизатор),
+        # чтобы скачанный .pt файл был самодостаточным и переносимым
+        with open(model_dir / "config.json", encoding="utf-8") as f:
+            full_config = json.load(f)
+        final_checkpoint = {
+            "model_state_dict": model.state_dict(),
+            "model_config": full_config,
+            "tokenizer_data": {
+                "token_to_id": tokenizer.token_to_id,
+                "id_to_token": {str(k): v for k, v in tokenizer.id_to_token.items()},
+                "vocab_size": tokenizer.vocab_size
+            },
+            "iteration": training_status.get("current_iteration", 0),
+            "timestamp": datetime.now().isoformat()
+        }
+        torch.save(final_checkpoint, model_dir / "model_trained.pt")
 
         training_status["is_training"] = False
+        training_status["phase"] = "idle"
         training_status["history"] = history
 
     except Exception as e:
         training_status["is_training"] = False
+        training_status["phase"] = "idle"
         training_status["error"] = str(e)
         print(f"Training error: {e}")
         import traceback
@@ -1124,7 +1162,14 @@ async def upload_model(model_name: str, file: UploadFile = File(...)):
                 else:
                     model_config = {}
 
-                # Определяем параметры из весов если конфиг не найден
+                # Определяем параметры из весов если конфиг не найден или неполный
+                # (старые чекпоинты сохраняли только vocab_size/d_model/max_seq_len)
+                required_keys = ['vocab_size', 'd_model', 'num_layers', 'num_heads', 'd_ff', 'max_seq_len']
+                if model_config and not all(k in model_config for k in required_keys):
+                    partial = dict(model_config)
+                    model_config = {}
+                else:
+                    partial = {}
                 if not model_config:
                     emb_key = next((k for k in state_dict if 'embedding' in k and 'weight' in k), None)
                     if emb_key:
@@ -1144,11 +1189,18 @@ async def upload_model(model_name: str, file: UploadFile = File(...)):
                     # Определяем d_ff из первого FF слоя
                     ff_key = next((k for k in state_dict if '.ff.linear1.weight' in k), None)
                     d_ff = int(state_dict[ff_key].shape[0]) if ff_key else int(d_model) * 4
+                    d_model_i = int(d_model)
+                    # num_heads must divide d_model — pick the largest divisor ≤ d_model//64
+                    heads_guess = max(d_model_i // 64, 1)
+                    while heads_guess > 1 and d_model_i % heads_guess != 0:
+                        heads_guess -= 1
                     model_config = {
-                        'vocab_size': int(vocab_size), 'd_model': int(d_model),
-                        'num_layers': max(num_layers, 1), 'num_heads': max(int(d_model) // 64, 1),
+                        'vocab_size': int(vocab_size), 'd_model': d_model_i,
+                        'num_layers': max(num_layers, 1), 'num_heads': heads_guess,
                         'd_ff': d_ff, 'max_seq_len': max_seq_len, 'name': model_name
                     }
+                    # Известные из чекпоинта значения важнее выведенных из весов
+                    model_config.update({k: v for k, v in partial.items() if k in required_keys})
 
                 # Создаём модель и проверяем что веса подходят
                 model = CustomTransformerLM(**{k: model_config[k] for k in ['vocab_size', 'd_model', 'num_layers', 'num_heads', 'd_ff', 'max_seq_len']})
@@ -1665,32 +1717,97 @@ async def start_autopilot(config: AutopilotConfig):
         quality_spec = {
             "target_score": config.target_score,
             "min_improvement_pct": config.min_improvement_pct,
+            "max_unk_ratio": config.max_unk_ratio,
+            "max_repetition": config.max_repetition,
+            "min_vocabulary": config.min_vocabulary,
+            "min_real_word_ratio": config.min_real_word_ratio,
             "must_include": (config.must_include or "").strip() or None,
             "must_avoid": (config.must_avoid or "").strip() or None,
             "custom_prompts": [p.strip() for p in (config.custom_prompts or []) if p.strip()] or None
         }
         # Drop keys that are None so the prompt stays clean
         quality_spec = {k: v for k, v in quality_spec.items() if v is not None}
+
+        # Hardware summary so the LLM sizes the model to this machine
+        if torch.cuda.is_available():
+            try:
+                gpu_mem = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+                hw_info = f"GPU: {torch.cuda.get_device_name(0)} ({gpu_mem:.0f} GB VRAM). CUDA available."
+            except Exception:
+                hw_info = "GPU: CUDA available (unknown model)."
+        else:
+            try:
+                import psutil
+                ram_gb = psutil.virtual_memory().total / (1024 ** 3)
+                hw_info = f"CPU only, {ram_gb:.0f} GB RAM. No GPU — training is SLOW (~100 iter/min). Prefer small models."
+            except ImportError:
+                hw_info = "CPU only (no GPU). Training is SLOW (~100 iter/min). Prefer small models."
+
         active_autopilot.start(
             config.goal,
             time_budget_minutes=config.time_budget or 0,
-            quality_spec=quality_spec
+            quality_spec=quality_spec,
+            hardware_info=hw_info
         )
         return {"status": "started"}
     except Exception as e:
         raise HTTPException(500, f"Failed to start autopilot: {str(e)}")
 
 
+def _build_scoreboard(model_name: str) -> dict:
+    """Baseline vs latest benchmark scores for the UI target-benchmark table."""
+    empty = {"model_name": model_name, "baseline": None, "latest": None, "improvement_pct": None}
+    if not model_name:
+        return empty
+    try:
+        h = model_history.get_history(model_name)
+        benched = [r for r in h.get("runs", [])
+                   if r.get("benchmark", {}).get("overall_score") is not None]
+        if not benched:
+            return empty
+
+        def _pack(run):
+            b = run["benchmark"]
+            return {
+                "run_id": run["run_id"],
+                "label": run.get("notes", ""),
+                "overall_score": b.get("overall_score"),
+                "verdict": b.get("verdict"),
+                "scores": b.get("scores", {})
+            }
+
+        baseline = _pack(benched[0])
+        latest = _pack(benched[-1]) if len(benched) > 1 else None
+        improvement = None
+        if latest is not None and baseline["overall_score"] is not None:
+            improvement = round((latest["overall_score"] - baseline["overall_score"]) * 100, 2)
+        return {"model_name": model_name, "baseline": baseline,
+                "latest": latest, "improvement_pct": improvement}
+    except Exception:
+        return empty
+
+
 @app.get("/autopilot/status")
 async def get_autopilot_status(since: int = 0):
     if not active_autopilot:
-        return {"state": "idle", "log": [], "log_count": 0}
+        return {"state": "idle", "log": [], "log_count": 0,
+                "current_model": None, "scoreboard": None, "quality_spec": {}}
     status = active_autopilot.get_status()
+    current_model = status.get("current_model")
     return {
         "state": status["state"],
         "log": status["log"][since:],
-        "log_count": status["log_count"]
+        "log_count": status["log_count"],
+        "current_model": current_model,
+        "quality_spec": status.get("quality_spec", {}),
+        "scoreboard": _build_scoreboard(current_model)
     }
+
+
+@app.get("/model_scoreboard/{model_name}")
+async def get_model_scoreboard(model_name: str):
+    """Standalone benchmark scoreboard for any model (used by the UI table)."""
+    return _build_scoreboard(model_name)
 
 
 @app.post("/autopilot/stop")

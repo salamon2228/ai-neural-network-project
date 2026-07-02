@@ -14,6 +14,9 @@ A web-based system for creating, training, and analyzing neural language models 
 
 ## Features
 
+- **Target benchmarks table (Anthropic-style)** — enter hard quality targets (overall score, improvement %, UNK ratio, repetition, vocabulary, real-word ratio); the LLM autopilot must reach them and prove it with numbers, or honestly report failure. Baseline/Result columns fill in live during training
+- **Portable model format** — a downloaded `.pt` file carries weights + config + tokenizer; upload it on any machine and it just works
+- **Hardware-aware autopilot** — the agent is told your CPU/GPU/RAM up front and sizes the model accordingly; stall detection distinguishes slow preparation on weak PCs from real freezes
 - **Custom transformer architecture** — create models with any configuration (layers, heads, embedding size)
 - **AZR Self-Play training** — the model improves itself through self-play with REINFORCE policy gradient
 - **6-component reward system** — diversity, coherence, repetition penalty, length, vocabulary richness, bigram naturalness
