@@ -560,13 +560,13 @@
             <div class="info-card bench-card">
                 <div class="bench-head">
                     <h3 class="bench-title" data-i18n="bench_title">Целевые бенчмарки</h3>
-                    <p class="bench-sub" data-i18n="bench_desc">Все показатели — в баллах от 0 до 100. Впишите нужный балл ниже, остальные цели подберутся сами (их можно поправить вручную). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем.</p>
+                    <p class="bench-sub" data-i18n="bench_desc">Главный показатель — рейтинг AZR: та же шкала Elo, что в сравнениях больших моделей (1500 — середина, потолка нет). Впишите нужный рейтинг ниже — остальные цели подберутся сами (их можно поправить). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем.</p>
                     <div class="bench-auto">
-                        <label for="ap_auto_level" data-i18n="bench_auto_label">Сколько баллов нужно?</label>
-                        <input type="number" id="ap_auto_level" min="10" max="95" step="5" placeholder="65">
+                        <label for="ap_auto_level" data-i18n="bench_auto_label">Какой рейтинг нужен?</label>
+                        <input type="number" id="ap_auto_level" min="1000" max="2400" step="50" placeholder="1650">
                         <button type="button" class="btn btn-outline bench-auto-btn" onclick="autoFillTargets()" data-i18n="bench_auto_btn">Подобрать цели</button>
                         <span class="bench-auto-note" id="ap_auto_note" style="display:none;"></span>
-                        <span class="bench-auto-hint" data-i18n="bench_auto_hint">50 — нормально, 65 — хорошо, 80 — отлично</span>
+                        <span class="bench-auto-hint" data-i18n="bench_auto_hint">1500 — нормально, 1650 — хорошо, 1800 — отлично</span>
                     </div>
                 </div>
                 <div class="bench-wrap">
@@ -576,21 +576,21 @@
                             <tr>
                                 <th class="b-lblh"></th>
                                 <th class="b-hero"><span class="b-col-name" data-i18n="bench_col_result">Результат</span><span class="b-col-sub" data-i18n="bench_col_result_sub">после обучения</span></th>
-                                <th class="b-plain"><span class="b-col-name" data-i18n="bench_col_target">Цель</span><span class="b-col-sub" data-i18n="bench_col_target_sub">баллы 0–100</span></th>
+                                <th class="b-plain"><span class="b-col-name" data-i18n="bench_col_target">Цель</span><span class="b-col-sub" data-i18n="bench_col_target_sub">впишите цель</span></th>
                                 <th class="b-ref"><span class="b-col-name" data-i18n="bench_col_baseline">До обучения</span><span class="b-col-sub" data-i18n="bench_col_ref_sub">для сравнения</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_overall">Качество текста</span><span class="sub" data-i18n="bench_s_overall">общий балл 0–100 · выше = лучше</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_overall">Рейтинг качества</span><span class="sub" data-i18n="bench_s_overall">шкала Elo, как у больших моделей · 1500 — середина · потолка нет</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_overall">—</span><span class="b-cap" id="ap_st_overall"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_target_score" min="0" max="100" step="5" placeholder="65"></div></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_target_score" min="800" max="2600" step="25" placeholder="1650"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_overall">—</span></td>
                             </tr>
                             <tr>
-                                <td class="b-lbl"><span class="name" data-i18n="bench_m_improve">Прогресс обучения</span><span class="sub" data-i18n="bench_s_improve">прирост баллов после обучения</span></td>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_improve">Рост рейтинга</span><span class="sub" data-i18n="bench_s_improve">на сколько пунктов рейтинг вырастет после обучения</span></td>
                                 <td class="b-hero"><span class="b-val" id="ap_res_improvement">—</span><span class="b-cap" id="ap_st_improvement"></span></td>
-                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_improvement" min="0" max="500" step="5" placeholder="20"></div></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_improvement" min="0" max="1000" step="25" placeholder="100"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref">0</span></td>
                             </tr>
                             <tr>
@@ -1393,22 +1393,22 @@ var TRANSLATIONS = {
         ckpt_kind_interrupted: 'прервано',
         ckpt_kind_error: 'ошибка',
         bench_title: 'Целевые бенчмарки',
-        bench_desc: 'Все показатели — в баллах от 0 до 100. Впишите нужный балл ниже, остальные цели подберутся сами (их можно поправить вручную). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем. Важно: это внутренняя шкала AZR для маленьких моделей — с баллами больших нейросетей (Opus, Sonnet) она не сравнивается.',
-        bench_auto_label: 'Сколько баллов нужно?',
+        bench_desc: 'Главный показатель — рейтинг AZR: та же шкала Elo, что в сравнениях больших моделей (1500 — середина, потолка нет). Впишите нужный рейтинг ниже — остальные цели подберутся сами (их можно поправить). Автопилот обязан достичь целей и доказать цифрами — или честно сообщить о провале. Пустая цель = не проверяем. Детальные метрики — в баллах 0–100.',
+        bench_auto_label: 'Какой рейтинг нужен?',
         bench_auto_btn: 'Подобрать цели',
-        bench_auto_hint: '50 — нормально, 65 — хорошо, 80 — отлично',
+        bench_auto_hint: '1500 — нормально, 1650 — хорошо, 1800 — отлично',
         bench_auto_done: '✓ Цели подобраны',
         bench_your_model: 'Ваша модель',
         bench_col_target: 'Цель',
-        bench_col_target_sub: 'баллы 0–100',
+        bench_col_target_sub: 'впишите цель',
         bench_col_baseline: 'До обучения',
         bench_col_ref_sub: 'для сравнения',
         bench_col_result: 'Результат',
         bench_col_result_sub: 'после обучения',
-        bench_m_overall: 'Качество текста',
-        bench_s_overall: 'общий балл 0–100 · выше = лучше',
-        bench_m_improve: 'Прогресс обучения',
-        bench_s_improve: 'прирост баллов после обучения',
+        bench_m_overall: 'Рейтинг качества',
+        bench_s_overall: 'шкала Elo, как у больших моделей · 1500 — середина · потолка нет',
+        bench_m_improve: 'Рост рейтинга',
+        bench_s_improve: 'на сколько пунктов рейтинг вырастет после обучения',
         bench_m_unk: 'Чистота текста',
         bench_s_unk: 'мусорные слова <UNK>, баллы · ниже = лучше',
         bench_m_rep: 'Разнообразие',
@@ -1619,22 +1619,22 @@ var TRANSLATIONS = {
         ckpt_kind_interrupted: 'interrupted',
         ckpt_kind_error: 'error',
         bench_title: 'Target benchmarks',
-        bench_desc: 'All metrics use points from 0 to 100. Enter the score you need below and the other targets will be picked automatically (you can adjust them manually). The autopilot must reach the targets and prove it with numbers — or honestly report failure. Empty target = not checked. Note: this is AZR\'s internal scale for small models — it is not comparable to benchmark scores of large models (Opus, Sonnet).',
-        bench_auto_label: 'How many points do you need?',
+        bench_desc: 'The headline metric is the AZR rating — the same Elo scale used in big-model comparisons (1500 is the middle, no ceiling). Enter the rating you need below and the other targets are picked automatically (you can adjust them). The autopilot must reach the targets and prove it with numbers — or honestly report failure. Empty target = not checked. Detailed metrics use 0–100 points.',
+        bench_auto_label: 'What rating do you need?',
         bench_auto_btn: 'Pick targets',
-        bench_auto_hint: '50 — okay, 65 — good, 80 — excellent',
+        bench_auto_hint: '1500 — okay, 1650 — good, 1800 — excellent',
         bench_auto_done: '✓ Targets picked',
         bench_your_model: 'Your model',
         bench_col_target: 'Target',
-        bench_col_target_sub: 'points 0–100',
+        bench_col_target_sub: 'enter a target',
         bench_col_baseline: 'Baseline',
         bench_col_ref_sub: 'for reference',
         bench_col_result: 'Result',
         bench_col_result_sub: 'after training',
-        bench_m_overall: 'Text quality',
-        bench_s_overall: 'overall score 0–100 · higher = better',
-        bench_m_improve: 'Training progress',
-        bench_s_improve: 'points gained after training',
+        bench_m_overall: 'Quality rating',
+        bench_s_overall: 'Elo scale, like big-model leaderboards · 1500 — middle · no ceiling',
+        bench_m_improve: 'Rating gain',
+        bench_s_improve: 'how many rating points training adds',
         bench_m_unk: 'Text cleanliness',
         bench_s_unk: 'garbage words <UNK>, points · lower = better',
         bench_m_rep: 'Diversity',
@@ -1800,9 +1800,9 @@ function startAutopilot() {
         endpoint: sendEndpoint,
         model: sendModel,
         time_budget: timeBudget,
-        // Таблица работает в процентах (как у Anthropic), бэкенд — в долях 0..1
-        target_score: targetScoreRaw !== '' ? parseFloat(targetScoreRaw) / 100 : null,
-        min_improvement_pct: minImprovRaw !== '' ? parseFloat(minImprovRaw) : null,
+        // Рейтинг — Elo-шкала (1500 середина), остальные метрики — баллы 0–100 -> доли 0..1
+        target_rating: targetScoreRaw !== '' ? Math.round(parseFloat(targetScoreRaw)) : null,
+        min_rating_gain: minImprovRaw !== '' ? Math.round(parseFloat(minImprovRaw)) : null,
         max_unk_ratio: maxUnkRaw !== '' ? parseFloat(maxUnkRaw) / 100 : null,
         max_repetition: maxRepRaw !== '' ? parseFloat(maxRepRaw) / 100 : null,
         min_vocabulary: minVocabRaw !== '' ? parseInt(minVocabRaw) : null,
@@ -1890,21 +1890,27 @@ function fmtBenchInt(v) {
     return String(Math.round(v));
 }
 
-// Автоподбор целей: пользователь вписывает ОДИН нужный балл (0–100),
+// Рейтинг AZR — шкала Elo как у больших моделей: 1500 = балл 0.5, потолка нет.
+// score 0..1 -> rating: 1500 + 400*log10(s/(1-s)); обратно: s = 1/(1+10^((1500-R)/400))
+function ratingToScore(rating) {
+    return 1 / (1 + Math.pow(10, (1500 - rating) / 400));
+}
+
+// Автоподбор целей: пользователь вписывает ОДИН нужный рейтинг,
 // остальные цели выводятся из формулы общего балла бэкенда:
 // overall = 0.30*(1-2*unk) + 0.25*real + 0.25*min(vocab/100,1) + 0.20*(1-rep)
 function autoFillTargets() {
     var raw = document.getElementById('ap_auto_level').value;
-    var lvl = parseFloat(raw);
-    if (isNaN(lvl)) { lvl = 65; document.getElementById('ap_auto_level').value = 65; }
-    lvl = Math.max(10, Math.min(95, Math.round(lvl)));
-    var tf = lvl / 100;
-    document.getElementById('ap_target_score').value = lvl;
-    document.getElementById('ap_min_improvement').value = Math.max(10, Math.round(lvl / 4));
+    var rating = parseFloat(raw);
+    if (isNaN(rating)) { rating = 1650; document.getElementById('ap_auto_level').value = 1650; }
+    rating = Math.max(1000, Math.min(2400, Math.round(rating)));
+    var tf = ratingToScore(rating);  // доля 0..1
+    document.getElementById('ap_target_score').value = rating;
+    document.getElementById('ap_min_improvement').value = Math.max(50, Math.round((rating - 1400) / 2.5));
     document.getElementById('ap_max_unk').value = Math.round((1 - tf) / 2 * 100);
     document.getElementById('ap_max_rep').value = Math.round((1 - tf) * 100);
-    document.getElementById('ap_min_vocab').value = lvl;
-    document.getElementById('ap_min_realwords').value = lvl;
+    document.getElementById('ap_min_vocab').value = Math.round(tf * 100);
+    document.getElementById('ap_min_realwords').value = Math.round(tf * 100);
     var note = document.getElementById('ap_auto_note');
     if (note) { note.style.display = 'inline'; note.textContent = t('bench_auto_done'); }
 }
@@ -1927,25 +1933,29 @@ function updateBenchTable(sb, modelName) {
     var baseOverall = sb.baseline ? sb.baseline.overall_score : null;
     var latestOverall = sb.latest ? sb.latest.overall_score : null;
 
+    var baseRating = sb.baseline ? sb.baseline.rating : null;
+    var latestRating = sb.latest ? sb.latest.rating : null;
+
     // Колонка «До обучения»
-    document.getElementById('ap_base_overall').textContent = fmtBenchPct(baseOverall);
+    document.getElementById('ap_base_overall').textContent = fmtBenchInt(baseRating);
     document.getElementById('ap_base_unk').textContent = fmtBenchPct(base.unk_ratio);
     document.getElementById('ap_base_rep').textContent = fmtBenchPct(base.avg_repetition);
     document.getElementById('ap_base_vocab').textContent = fmtBenchInt(base.vocabulary_diversity);
     document.getElementById('ap_base_real').textContent = fmtBenchPct(base.real_word_ratio);
 
-    // Колонка «Результат»
-    document.getElementById('ap_res_overall').textContent = fmtBenchPct(latestOverall);
+    // Колонка «Результат» — рейтинг Elo-шкалой, остальное баллами 0–100
+    document.getElementById('ap_res_overall').textContent = fmtBenchInt(latestRating);
+    var ratingDelta = (sb.rating_delta !== null && sb.rating_delta !== undefined) ? sb.rating_delta
+        : (latestRating !== null && baseRating !== null ? latestRating - baseRating : null);
     document.getElementById('ap_res_improvement').textContent =
-        (sb.improvement_pct === null || sb.improvement_pct === undefined) ? '—'
-        : ((sb.improvement_pct >= 0 ? '+' : '') + sb.improvement_pct.toFixed(1).replace(/\.0$/, ''));
+        (ratingDelta === null) ? '—' : ((ratingDelta >= 0 ? '+' : '') + Math.round(ratingDelta));
     document.getElementById('ap_res_unk').textContent = fmtBenchPct(latest.unk_ratio);
     document.getElementById('ap_res_rep').textContent = fmtBenchPct(latest.avg_repetition);
     document.getElementById('ap_res_vocab').textContent = fmtBenchInt(latest.vocabulary_diversity);
     document.getElementById('ap_res_real').textContent = fmtBenchPct(latest.real_word_ratio);
 
     // Подписи ✓/✗ под результатом — только когда есть результат после обучения.
-    // Цели в таблице в процентах, метрики бэкенда — доли 0..1 (кроме словаря и % улучшения).
+    // Рейтинг и словарь сравниваются как есть, доли бэкенда (0..1) — через /100.
     var hasResult = sb.latest !== null && sb.latest !== undefined;
     function judge(id, targetRaw, actual, dirMax, isFraction) {
         if (targetRaw === '' || targetRaw === null || !hasResult || actual === null || actual === undefined) {
@@ -1955,8 +1965,8 @@ function updateBenchTable(sb, modelName) {
         if (isFraction) tval = tval / 100;
         setBenchCap(id, dirMax ? (actual <= tval) : (actual >= tval));
     }
-    judge('ap_st_overall', document.getElementById('ap_target_score').value, latestOverall, false, true);
-    judge('ap_st_improvement', document.getElementById('ap_min_improvement').value, sb.improvement_pct, false, false);
+    judge('ap_st_overall', document.getElementById('ap_target_score').value, latestRating, false, false);
+    judge('ap_st_improvement', document.getElementById('ap_min_improvement').value, ratingDelta, false, false);
     judge('ap_st_unk', document.getElementById('ap_max_unk').value, latest.unk_ratio, true, true);
     judge('ap_st_rep', document.getElementById('ap_max_rep').value, latest.avg_repetition, true, true);
     judge('ap_st_vocab', document.getElementById('ap_min_vocab').value, latest.vocabulary_diversity, false, false);

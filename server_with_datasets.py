@@ -31,7 +31,7 @@ from dataset_manager import DatasetManager
 from dataset_catalog import DatasetCatalog
 from reward_model import RewardComputer
 from training_analytics import TrainingAnalytics
-from llm_autopilot import LLMAutopilot, LLMProvider, ToolExecutor
+from llm_autopilot import LLMAutopilot, LLMProvider, ToolExecutor, azr_rating
 from model_history import ModelHistory
 
 app = FastAPI(title="AZR Model Trainer v2")
@@ -151,6 +151,8 @@ class AutopilotConfig(BaseModel):
     model: Optional[str] = None
     time_budget: Optional[int] = 0
     # Quality spec — hard targets the autopilot must prove or honestly fail
+    target_rating: Optional[int] = None           # min AZR rating (Elo-like, 1500 = mid, no ceiling)
+    min_rating_gain: Optional[int] = None         # min rating gain vs baseline
     target_score: Optional[float] = None          # min acceptable overall_score [0..1]
     min_improvement_pct: Optional[float] = None   # min improvement vs baseline in %
     max_unk_ratio: Optional[float] = None         # max share of <UNK> tokens in output
@@ -1746,6 +1748,8 @@ async def start_autopilot(config: AutopilotConfig):
         )
         active_autopilot = LLMAutopilot(provider, executor)
         quality_spec = {
+            "target_rating": config.target_rating,
+            "min_rating_gain": config.min_rating_gain,
             "target_score": config.target_score,
             "min_improvement_pct": config.min_improvement_pct,
             "max_unk_ratio": config.max_unk_ratio,
@@ -1799,10 +1803,16 @@ def _build_scoreboard(model_name: str) -> dict:
 
         def _pack(run):
             b = run["benchmark"]
+            overall = b.get("overall_score")
+            # Старые записи истории не содержат azr_rating — считаем из балла
+            rating = b.get("azr_rating")
+            if rating is None and overall is not None:
+                rating = azr_rating(overall)
             return {
                 "run_id": run["run_id"],
                 "label": run.get("notes", ""),
-                "overall_score": b.get("overall_score"),
+                "overall_score": overall,
+                "rating": rating,
                 "verdict": b.get("verdict"),
                 "scores": b.get("scores", {})
             }
@@ -1810,10 +1820,14 @@ def _build_scoreboard(model_name: str) -> dict:
         baseline = _pack(benched[0])
         latest = _pack(benched[-1]) if len(benched) > 1 else None
         improvement = None
+        rating_delta = None
         if latest is not None and baseline["overall_score"] is not None:
             improvement = round((latest["overall_score"] - baseline["overall_score"]) * 100, 2)
+            if latest["rating"] is not None and baseline["rating"] is not None:
+                rating_delta = latest["rating"] - baseline["rating"]
         return {"model_name": model_name, "baseline": baseline,
-                "latest": latest, "improvement_pct": improvement}
+                "latest": latest, "improvement_pct": improvement,
+                "rating_delta": rating_delta}
     except Exception:
         return empty
 

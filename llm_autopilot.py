@@ -4,6 +4,7 @@ LLM Autopilot — интеллектуальный агент, который а
 """
 
 import json
+import math
 import time
 import threading
 import urllib.request
@@ -13,6 +14,21 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Callable
+
+
+def azr_rating(score: float) -> int:
+    """Перевод композитного балла 0..1 в Elo-подобный рейтинг AZR.
+
+    Та же математика, что в публичных рейтингах больших моделей (Elo):
+    1500 — середина шкалы, потолка нет. 0.5 -> 1500, 0.72 -> 1664,
+    0.9 -> 1882, 0.99 -> 2298."""
+    s = min(max(float(score), 0.001), 0.999)
+    return int(round(1500 + 400 * math.log10(s / (1 - s))))
+
+
+def rating_to_score(rating: float) -> float:
+    """Обратное преобразование: рейтинг AZR -> композитный балл 0..1."""
+    return 1.0 / (1.0 + 10 ** ((1500.0 - float(rating)) / 400.0))
 
 # ============================
 # SYSTEM PROMPT
@@ -61,6 +77,7 @@ SYSTEM_PROMPT = """You are an expert AI engineer autopilot. You train small tran
 
 ### Phase 6: Check user's quality targets (MANDATORY if targets specified)
 16. Call check_quality_targets(model_name). This returns per-criterion pass/fail for:
+    - target_rating / min_rating_gain (AZR rating — Elo-like scale where 1500 = overall_score 0.5)
     - target_score (minimum overall_score the user accepts)
     - min_improvement_pct (minimum improvement vs baseline)
     - max_unk_ratio / max_repetition / min_vocabulary / min_real_word_ratio (per-metric benchmark targets)
@@ -1216,6 +1233,7 @@ class ToolExecutor:
                 "verdict": verdict,
                 "advice": advice,
                 "overall_score": overall_score,
+                "azr_rating": azr_rating(overall_score),
                 "scores": {
                     "unk_ratio": round(unk_ratio, 3),
                     "real_word_ratio": round(real_word_ratio, 3),
@@ -1304,9 +1322,49 @@ class ToolExecutor:
 
         current_score = latest["benchmark"]["overall_score"]
         current_verdict = latest["benchmark"].get("verdict")
+        current_rating = azr_rating(current_score)
 
         checks = []
         numeric_passed = True
+
+        # Рейтинг AZR (Elo-шкала, 1500 — середина, потолка нет)
+        target_rating = spec.get("target_rating")
+        if target_rating is not None:
+            passed = current_rating >= target_rating
+            checks.append({
+                "criterion": "target_azr_rating",
+                "target": target_rating,
+                "actual": current_rating,
+                "passed": passed,
+                "detail": f"Need AZR rating ≥ {target_rating}, got {current_rating}"
+            })
+            if not passed:
+                numeric_passed = False
+
+        min_gain = spec.get("min_rating_gain")
+        if min_gain is not None:
+            cmp_result = self.history.compare_runs(model_name)
+            if "error" in cmp_result:
+                checks.append({
+                    "criterion": "min_rating_gain",
+                    "target": min_gain, "actual": None, "passed": False,
+                    "detail": f"Cannot compare yet: {cmp_result['error']}"
+                })
+                numeric_passed = False
+            else:
+                rating_a = azr_rating(cmp_result["run_a"]["overall"])
+                rating_b = azr_rating(cmp_result["run_b"]["overall"])
+                gain = rating_b - rating_a
+                passed = gain >= min_gain
+                checks.append({
+                    "criterion": "min_rating_gain",
+                    "target": min_gain,
+                    "actual": gain,
+                    "passed": passed,
+                    "detail": f"Need rating gain ≥ {min_gain} (baseline {rating_a} -> now {rating_b}), got {gain:+d}"
+                })
+                if not passed:
+                    numeric_passed = False
 
         target = spec.get("target_score")
         if target is not None:
@@ -1400,6 +1458,7 @@ class ToolExecutor:
         return {
             "model_name": model_name,
             "current_overall_score": current_score,
+            "current_azr_rating": current_rating,
             "current_verdict": current_verdict,
             "run_id_checked": latest["run_id"],
             "checks": checks,
@@ -1631,6 +1690,13 @@ class LLMAutopilot:
         # Build quality spec block for the first user message
         spec = self.quality_spec or {}
         spec_lines = []
+        if spec.get("target_rating") is not None:
+            spec_lines.append(
+                f"- TARGET AZR rating: ≥ {spec['target_rating']} (Elo-like scale, 1500 = overall_score 0.5; "
+                f"rating R maps to overall_score s = 1/(1+10^((1500-R)/400)), "
+                f"so {spec['target_rating']} means overall_score ≥ {rating_to_score(spec['target_rating']):.3f})")
+        if spec.get("min_rating_gain") is not None:
+            spec_lines.append(f"- MINIMUM AZR rating gain vs baseline: ≥ {spec['min_rating_gain']} rating points")
         if spec.get("target_score") is not None:
             spec_lines.append(f"- TARGET overall_score: ≥ {spec['target_score']} (composite score in [0..1]; higher=better)")
         if spec.get("min_improvement_pct") is not None:
