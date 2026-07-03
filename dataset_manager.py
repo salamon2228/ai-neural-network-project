@@ -57,6 +57,11 @@ class DatasetManager:
                 entry["source"] = metadata.get("source", "upload")
                 entry["lines"] = metadata.get("lines", 0)
                 entry["description"] = metadata.get("description", "")
+                # Человекочитаемое название («Анна Каренина»), файл остаётся техническим
+                if metadata.get("title"):
+                    entry["title"] = metadata["title"]
+                if metadata.get("catalog_id"):
+                    entry["catalog_id"] = metadata["catalog_id"]
             self.db["datasets"][dataset_name] = entry
             self._save_db()
 
@@ -113,18 +118,20 @@ class DatasetManager:
             return [
                 {
                     "name": name,
+                    "title": info.get("title") or name,
                     "path": info["path"],
                     "size": info["size"],
                     "attached_to": info["attached_to"]
                 }
                 for name, info in self.db["datasets"].items()
             ]
-        
+
         # Только не прикреплённые к этой модели
         attached = self.get_attached_datasets(model_name)
         return [
             {
                 "name": name,
+                "title": info.get("title") or name,
                 "path": info["path"],
                 "size": info["size"],
                 "attached_to": info["attached_to"]
@@ -177,6 +184,7 @@ class DatasetManager:
                 info = self.db["datasets"][ds_name]
                 dataset_info.append({
                     "name": ds_name,
+                    "title": info.get("title") or ds_name,
                     "size": info["size"],
                     "path": info["path"]
                 })

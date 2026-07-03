@@ -879,25 +879,47 @@ async function loadModelsSelect() {
     });
 }
 
+// Карточка датасета: человеческое название крупно, технический файл — мелко серым
+function datasetItemHTML(d, actionFn, btnClass, btnLabel) {
+    var fname = d.name || d;
+    var title = d.title || fname;
+    var sizeKb = ((d.size || 0) / 1024).toFixed(1);
+    var sub = (title !== fname) ? '<span style="display:block;font-size:0.78em;color:#8A857A;">' + escapeHtml(fname) + ' · ' + sizeKb + ' KB</span>'
+                                : '<span style="display:block;font-size:0.78em;color:#8A857A;">' + sizeKb + ' KB</span>';
+    return '<div class="dataset-item"><span><b>' + escapeHtml(title) + '</b>' + sub + '</span>' +
+        '<button class="btn ' + btnClass + '" onclick="' + actionFn + '(decodeURIComponent(\'' + encodeURIComponent(fname) + '\'))">' + btnLabel + '</button></div>';
+}
+
 async function loadDatasets() {
+    // Если модель выбрана — оба списка рисует loadModelDatasets (с фильтрацией)
+    const modelSel = document.getElementById('dataset_model_name');
+    if (modelSel && modelSel.value) { loadModelDatasets(); return; }
     const resp = await fetch('/books');
     const data = await resp.json();
     const div = document.getElementById('available_datasets');
     if (div) {
-        div.innerHTML = data.books.map(b => '<div class="dataset-item"><span>' + (b.name||b) + ' (' + ((b.size||0)/1024).toFixed(1) + ' KB)</span><button class="btn btn-primary" onclick="attachDS(\'' + (b.name||b) + '\')">' + t('btn_attach') + '</button></div>').join('') || '<p style="color:#8A857A;">' + t('no_datasets') + '</p>';
+        div.innerHTML = data.books.map(function(b) { return datasetItemHTML(b, 'attachDS', 'btn-primary', t('btn_attach')); }).join('')
+            || '<p style="color:#8A857A;">' + t('no_datasets') + '</p>';
     }
-    loadModelDatasets();
 }
 
 async function loadModelDatasets() {
     const modelName = document.getElementById('dataset_model_name') ? document.getElementById('dataset_model_name').value : '';
     if (!modelName) return;
     try {
-        const resp = await fetch('/model_datasets/' + modelName);
+        const resp = await fetch('/model_datasets/' + encodeURIComponent(modelName));
         const data = await resp.json();
         const div = document.getElementById('attached_datasets');
         if (div) {
-            div.innerHTML = data.attached.map(d => '<div class="dataset-item"><span>' + d.name + ' (' + (d.size/1024).toFixed(1) + ' KB)</span><button class="btn btn-danger" onclick="detachDS(\'' + d.name + '\')">' + t('btn_detach') + '</button></div>').join('') || '<p style="color:#8A857A;">' + t('no_attached') + '</p>';
+            div.innerHTML = data.attached.map(function(d) { return datasetItemHTML(d, 'detachDS', 'btn-danger', t('btn_detach')); }).join('')
+                || '<p style="color:#8A857A;">' + t('no_attached') + '</p>';
+        }
+        // Доступные — ТОЛЬКО не прикреплённые к этой модели: после «Прикрепить»
+        // датасет уходит из нижнего списка в верхний
+        const avDiv = document.getElementById('available_datasets');
+        if (avDiv) {
+            avDiv.innerHTML = data.available.map(function(d) { return datasetItemHTML(d, 'attachDS', 'btn-primary', t('btn_attach')); }).join('')
+                || '<p style="color:#8A857A;">' + t('no_datasets') + '</p>';
         }
     } catch(e) {}
 }

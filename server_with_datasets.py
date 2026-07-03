@@ -58,6 +58,24 @@ dataset_catalog = DatasetCatalog(BOOKS_DIR)
 # Persistent model history — used by autopilot for baseline/after comparisons
 model_history = ModelHistory(MEMORY_DIR / "model_history.json")
 
+
+def _backfill_dataset_titles():
+    """Дозаполнить человекочитаемые названия у ранее скачанных датасетов каталога."""
+    changed = False
+    for name, info in dataset_manager.db.get("datasets", {}).items():
+        if info.get("title"):
+            continue
+        catalog_id = info.get("catalog_id") or name.rsplit(".", 1)[0]
+        cat_info = dataset_catalog.get_dataset_info(catalog_id)
+        if cat_info:
+            info["title"] = cat_info.get("name") or cat_info.get("name_ru") or name
+            changed = True
+    if changed:
+        dataset_manager._save_db()
+
+
+_backfill_dataset_titles()
+
 training_status = {
     "is_training": False,
     "phase": "idle",  # idle | preparing | training
@@ -311,6 +329,8 @@ async def upload_book(file: UploadFile = File(...)):
             metadata = metadata or {}
             metadata["conversion_error"] = str(conv_err)
 
+        metadata = metadata or {}
+        metadata["title"] = file.filename  # оригинальное имя файла пользователя
         dataset_manager.register_dataset(converted_name, str(file_path), metadata=metadata)
 
         return {
@@ -397,6 +417,7 @@ async def get_model_datasets(model_name: str):
                 info = dataset_manager.db["datasets"][ds_name]
                 attached_info.append({
                     "name": ds_name,
+                    "title": info.get("title") or ds_name,
                     "size": info["size"],
                     "path": info["path"]
                 })
@@ -452,6 +473,7 @@ async def download_catalog_dataset(dataset_id: str):
                     metadata={
                         "source": "catalog",
                         "catalog_id": dataset_id,
+                        "title": info.get("name") or info.get("name_ru") or file_path.name,
                         "description": info.get("description", ""),
                         "format": "txt"
                     }

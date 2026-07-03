@@ -891,9 +891,11 @@ class ToolExecutor:
                 filename = file_path.name
                 size = file_path.stat().st_size
                 # Register in dataset manager
+                info = self.catalog.get_dataset_info(dataset_id) or {}
                 self.dm.register_dataset(filename, str(file_path), {
                     "source": "catalog",
                     "catalog_id": dataset_id,
+                    "title": info.get("name") or info.get("name_ru") or filename,
                     "size": size
                 })
                 return {"status": "success", "filename": filename, "size_kb": round(size / 1024, 1)}
