@@ -313,8 +313,8 @@
                     <input type="number" id="vocab_size" value="8000">
                 </div>
                 <div class="form-group">
-                    <label>D Model: <span class="help-icon">?<span class="tooltip" data-i18n="tip_dmodel">Размерность модели. Больше = умнее но медленнее.</span></span></label>
-                    <input type="number" id="d_model" value="256">
+                    <label>D Model: <span class="help-icon">?<span class="tooltip" data-i18n="tip_dmodel">Размерность модели. Больше = умнее но медленнее. Впишите её — Num Heads и D FF подставятся сами.</span></span></label>
+                    <input type="number" id="d_model" value="256" oninput="autoModelParams()">
                 </div>
                 <div class="form-group">
                     <label>Num Layers: <span class="help-icon">?<span class="tooltip" data-i18n="tip_layers">Количество трансформер-блоков. 4-12 оптимально.</span></span></label>
@@ -333,6 +333,7 @@
                     <input type="number" id="max_seq_len" value="256">
                 </div>
             </div>
+            <p id="create_auto_note" style="display:none;color:#1A7F5A;font-size:0.82em;margin:-6px 0 10px;" data-i18n="create_auto_note">✓ Num Heads и D FF подставлены автоматически под D Model — при желании можно поправить.</p>
             <button class="btn btn-primary" onclick="createModel()" data-i18n="btn_create_model">Создать модель</button>
             <div id="create_status"></div>
         </div>
@@ -372,8 +373,8 @@
             </div>
             <div class="grid">
                 <div class="form-group">
-                    <label>Max Iterations: <span class="help-icon">?<span class="tooltip" data-i18n="tip_iterations">1000=5мин, 10000=2ч, 100000=24ч</span></span></label>
-                    <input type="number" id="max_iterations" value="10000">
+                    <label>Max Iterations: <span class="help-icon">?<span class="tooltip" data-i18n="tip_iterations">1000=5мин, 10000=2ч, 100000=24ч. Save Every подстроится сам (~10 чекпоинтов за обучение).</span></span></label>
+                    <input type="number" id="max_iterations" value="10000" oninput="autoSaveEvery()">
                 </div>
                 <div class="form-group">
                     <label>Batch Size:</label>
@@ -386,6 +387,7 @@
                 <div class="form-group">
                     <label>Save Every:</label>
                     <input type="number" id="save_every" value="1000">
+                    <span id="train_auto_note" style="display:none;color:#1A7F5A;font-size:0.78em;" data-i18n="train_auto_note">✓ подобран автоматически (~10 чекпоинтов)</span>
                 </div>
             </div>
             <button class="btn btn-primary" onclick="startTraining()" data-i18n="btn_start_training">Начать обучение</button>
@@ -726,7 +728,7 @@ function showTab(tabName) {
     if (tabName === 'catalog') loadCatalog();
     if (tabName === 'create') loadHWRecommendation();
     if (tabName === 'datasets') { loadModelsSelect(); loadDatasets(); }
-    if (tabName === 'train') { loadModelsSelect(); initChart(); startStatusUpdates(); loadTrainingSeries(); }
+    if (tabName === 'train') { loadModelsSelect().then(function() { loadCheckpointList(); }); initChart(); startStatusUpdates(); loadTrainingSeries(); }
     if (tabName === 'generate') loadModelsSelect();
     if (tabName === 'compare') { loadModelsSelect(); }
     if (tabName === 'models') loadModelsList();
@@ -1033,6 +1035,15 @@ async function updateTrainingStatus() {
         document.getElementById('memory_usage').textContent = s.memory_mb ? s.memory_mb.toFixed(0) + ' MB' : '--';
         updateMilestones(pct);
         updateWhatsHappening(s);
+        // Список чекпоинтов обновляется сам: каждые ~30с во время обучения
+        // и сразу после его завершения
+        if (s.is_training) {
+            ckptPollCounter++;
+            if (ckptPollCounter % 15 === 0) loadCheckpointList();
+        } else if (wasTrainingFlag) {
+            loadCheckpointList();
+        }
+        wasTrainingFlag = s.is_training;
         if (s.reward_components && Object.keys(s.reward_components).length > 0) {
             document.getElementById('reward_components_box').style.display = 'block';
             document.getElementById('reward_components_list').innerHTML = Object.entries(s.reward_components).map(function(e) {
@@ -1062,6 +1073,8 @@ async function updateTrainingStatus() {
 }
 
 var lastChartIter = -1;
+var wasTrainingFlag = false;
+var ckptPollCounter = 0;
 
 function rebindChartData() {
     if (!trainingChart) return;
@@ -1180,6 +1193,32 @@ async function generateBeforeAfter() {
 }
 
 // === COMPARISON ===
+// Автоподстановка параметров модели: пользователь меняет только D Model,
+// а Num Heads (должен делить d_model нацело) и D FF (обычно 4×d_model)
+// подставляются сами — не все знают эти правила
+function autoModelParams() {
+    var dm = parseInt(document.getElementById('d_model').value);
+    if (isNaN(dm) || dm < 16) return;
+    var heads = Math.max(2, Math.min(16, Math.round(dm / 64)));
+    while (heads > 1 && dm % heads !== 0) heads--;
+    if (dm % heads !== 0) heads = 1;
+    document.getElementById('num_heads').value = heads;
+    document.getElementById('d_ff').value = dm * 4;
+    var note = document.getElementById('create_auto_note');
+    if (note) note.style.display = 'block';
+}
+
+// Save Every подстраивается под Max Iterations: ~10 чекпоинтов за обучение.
+// Раньше при 1000 итерациях и Save Every 1000 чекпоинтов почти не было.
+function autoSaveEvery() {
+    var mi = parseInt(document.getElementById('max_iterations').value);
+    if (isNaN(mi) || mi < 50) return;
+    var se = Math.max(50, Math.round(mi / 10 / 50) * 50);
+    document.getElementById('save_every').value = se;
+    var note = document.getElementById('train_auto_note');
+    if (note) note.style.display = 'block';
+}
+
 // Человекочитаемая подпись чекпоинта: «Итерация 2000 · loss 3.42 · авто · 02.07 14:32»
 function ckptDate(ts) {
     if (!ts || ts.length < 16) return '';
@@ -1395,10 +1434,10 @@ var TRANSLATIONS = {
         preset_quality_desc: '~24 часа, лучший результат',
         model_name: 'Название модели:',
         tip_vocab: 'Размер словаря. 10000-25000 оптимально.',
-        tip_dmodel: 'Размерность модели. Больше = умнее но медленнее.',
+        tip_dmodel: 'Размерность модели. Больше = умнее но медленнее. Впишите её — Num Heads и D FF подставятся сами.',
         tip_layers: 'Количество трансформер-блоков. 4-12 оптимально.',
         tip_heads: 'Attention heads. Должно делить d_model нацело.',
-        tip_iterations: '1000=5мин, 10000=2ч, 100000=24ч',
+        tip_iterations: '1000=5мин, 10000=2ч, 100000=24ч. Save Every подстроится сам (~10 чекпоинтов за обучение).',
         tip_temperature: '0.5=консервативно, 1.0=норма, 1.5+=креативно',
         btn_create_model: 'Создать модель',
         manage_datasets: 'Управление датасетами',
@@ -1501,6 +1540,7 @@ var TRANSLATIONS = {
         ckpt_col_when: 'Когда',
         ckpt_col_size: 'Размер',
         ckpt_kind_auto: 'авто',
+        ckpt_kind_final: 'финал',
         ckpt_kind_paused: 'пауза',
         ckpt_kind_interrupted: 'прервано',
         ckpt_kind_error: 'ошибка',
@@ -1533,6 +1573,8 @@ var TRANSLATIONS = {
         bench_s_coh: 'пары слов как в обучающем тексте, баллы · выше = лучше',
         bench_how_title: 'Как считается рейтинг?',
         bench_how_html: 'Модель пишет тексты по тестовым подсказкам, и каждый текст автоматически оценивается по 5 признакам:<ul><li><b>Чистота (25%)</b> — нет мусорных токенов &lt;UNK&gt;</li><li><b>Настоящие слова (20%)</b> — слова, а не обрывки и символы</li><li><b>Разнообразие словаря (20%)</b> — сколько разных слов использовано</li><li><b>Без повторов (15%)</b> — модель не зацикливается</li><li><b>Связность (20%)</b> — пары соседних слов встречаются в обучающем тексте. Именно это отсекает «салат из настоящих слов»: случайный набор слов связности не наберёт</li></ul>Итоговый балл 0–1 переводится в рейтинг по формуле Elo: 1500 = балл 0.5, потолка нет. Это автоматическая оценка ФОРМЫ текста, а не смысла — финальную проверку делайте глазами на вкладке «Генерация».',
+        create_auto_note: '✓ Num Heads и D FF подставлены автоматически под D Model — при желании можно поправить.',
+        train_auto_note: '✓ подобран автоматически (~10 чекпоинтов)',
         chart_dl_png: 'Скачать график (PNG)',
         chart_dl_csv: 'Скачать данные (CSV)',
         chart_full_hint: 'График показывает всю историю обучения с самого начала.',
@@ -1628,10 +1670,10 @@ var TRANSLATIONS = {
         preset_quality_desc: '~24 hours, best results',
         model_name: 'Model name:',
         tip_vocab: 'Vocabulary size. 10000-25000 is optimal.',
-        tip_dmodel: 'Model dimension. Larger = smarter but slower.',
+        tip_dmodel: 'Model dimension. Larger = smarter but slower. Enter it — Num Heads and D FF fill in automatically.',
         tip_layers: 'Number of transformer blocks. 4-12 is optimal.',
         tip_heads: 'Attention heads. Must evenly divide d_model.',
-        tip_iterations: '1000=5min, 10000=2h, 100000=24h',
+        tip_iterations: '1000=5min, 10000=2h, 100000=24h. Save Every adjusts itself (~10 checkpoints per run).',
         tip_temperature: '0.5=conservative, 1.0=normal, 1.5+=creative',
         btn_create_model: 'Create Model',
         manage_datasets: 'Manage Datasets',
@@ -1734,6 +1776,7 @@ var TRANSLATIONS = {
         ckpt_col_when: 'When',
         ckpt_col_size: 'Size',
         ckpt_kind_auto: 'auto',
+        ckpt_kind_final: 'final',
         ckpt_kind_paused: 'paused',
         ckpt_kind_interrupted: 'interrupted',
         ckpt_kind_error: 'error',
@@ -1766,6 +1809,8 @@ var TRANSLATIONS = {
         bench_s_coh: 'word pairs seen in training text, points · higher = better',
         bench_how_title: 'How is the rating measured?',
         bench_how_html: 'The model writes texts from test prompts, and each text is scored automatically on 5 signals:<ul><li><b>Cleanliness (25%)</b> — no garbage &lt;UNK&gt; tokens</li><li><b>Real words (20%)</b> — words, not fragments or symbols</li><li><b>Vocabulary diversity (20%)</b> — how many distinct words are used</li><li><b>No repetition (15%)</b> — the model does not loop</li><li><b>Coherence (20%)</b> — adjacent word pairs actually occur in the training text. This is what stops "real-word salad": random words will not score coherence</li></ul>The composite 0–1 score is converted to a rating with the Elo formula: 1500 = score 0.5, no ceiling. This is an automatic check of text FORM, not meaning — do the final check with your own eyes on the Generation tab.',
+        create_auto_note: '✓ Num Heads and D FF were filled in automatically to match D Model — adjust if you like.',
+        train_auto_note: '✓ picked automatically (~10 checkpoints)',
         chart_dl_png: 'Download chart (PNG)',
         chart_dl_csv: 'Download data (CSV)',
         chart_full_hint: 'The chart shows the entire training history from the very beginning.',

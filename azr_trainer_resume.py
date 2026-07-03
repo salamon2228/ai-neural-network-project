@@ -405,6 +405,12 @@ class AZRTrainer:
                     save_optimizer=True, kind="paused"
                 )
             else:
+                # Гарантированный финальный чекпоинт: раньше короткие обучения
+                # (меньше save_every итераций) не оставляли НИ ОДНОГО чекпоинта
+                self.save_checkpoint(
+                    checkpoint_dir / f"model_iter_{self.iteration}.pt",
+                    save_optimizer=True, kind="final"
+                )
                 print("Training completed!")
 
             # Финальный отчёт аналитики
