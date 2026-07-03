@@ -48,8 +48,9 @@ MEMORY_DIR = BASE_DIR / "memory"
 for dir_path in [MODELS_DIR, BOOKS_DIR, CHECKPOINTS_DIR, REPORTS_DIR, MEMORY_DIR]:
     dir_path.mkdir(exist_ok=True)
 
-# Менеджер датасетов
-dataset_manager = DatasetManager("datasets_db.json")
+# Менеджер датасетов — база всегда рядом с сервером, а не в папке запуска
+# (иначе привязки «пропадали», если сервер стартовали из другого каталога)
+dataset_manager = DatasetManager(str(BASE_DIR / "datasets_db.json"))
 
 # Каталог датасетов
 dataset_catalog = DatasetCatalog(BOOKS_DIR)
@@ -159,6 +160,7 @@ class AutopilotConfig(BaseModel):
     max_repetition: Optional[float] = None        # max avg_repetition [0..1]
     min_vocabulary: Optional[int] = None          # min unique real words across samples
     min_real_word_ratio: Optional[float] = None   # min share of real words in output
+    min_coherence: Optional[float] = None         # min share of word pairs seen in training data
     must_include: Optional[str] = None            # free-form: what output MUST have
     must_avoid: Optional[str] = None              # free-form: what output MUST NOT have
     custom_prompts: Optional[List[str]] = None    # user-supplied benchmark prompts
@@ -504,6 +506,8 @@ def train_model_background(config: TrainingConfig):
         training_status["error"] = None
         training_status["model_name"] = config.model_name
         training_status["max_iterations"] = config.max_iterations
+        # Полная история графика этого запуска — с самой первой итерации
+        training_status["series"] = []
 
         model_dir = MODELS_DIR / config.model_name
 
@@ -590,9 +594,25 @@ def train_model_background(config: TrainingConfig):
         model = model.to(device)
         training_status["device"] = device
 
-        # Callback для обновления статуса
+        # Callback для обновления статуса + накопление серии для графика,
+        # чтобы историю обучения можно было смотреть с самого начала
+        last_series_iter = {"i": -1}
+
         def update_status(status_dict):
             training_status.update(status_dict)
+            it = status_dict.get("current_iteration")
+            if it is not None and it > last_series_iter["i"] and status_dict.get("is_training", True):
+                last_series_iter["i"] = it
+                series = training_status.setdefault("series", [])
+                series.append({
+                    "iteration": it,
+                    "loss": status_dict.get("current_loss"),
+                    "reward": status_dict.get("current_reward"),
+                    "perplexity": status_dict.get("perplexity") or None,
+                })
+                # Прореживаем в 2 раза, если точек стало слишком много
+                if len(series) > 4000:
+                    training_status["series"] = series[::2]
 
         # Создаём RewardComputer с референсными текстами
         reward_computer = RewardComputer(tokenizer, reference_texts=texts[:100])
@@ -701,7 +721,18 @@ async def stop_training():
 
 @app.get("/training_status")
 async def get_training_status():
-    return training_status
+    # Серию не гоняем в каждом поллинге — для неё есть /training_series
+    return {k: v for k, v in training_status.items() if k != "series"}
+
+
+@app.get("/training_series")
+async def get_training_series():
+    """Полная история графика текущего/последнего обучения — с итерации 0."""
+    return {
+        "model_name": training_status.get("model_name"),
+        "is_training": training_status.get("is_training", False),
+        "series": training_status.get("series", []),
+    }
 
 
 @app.post("/generate_live")
@@ -1756,6 +1787,7 @@ async def start_autopilot(config: AutopilotConfig):
             "max_repetition": config.max_repetition,
             "min_vocabulary": config.min_vocabulary,
             "min_real_word_ratio": config.min_real_word_ratio,
+            "min_coherence": config.min_coherence,
             "must_include": (config.must_include or "").strip() or None,
             "must_avoid": (config.must_avoid or "").strip() or None,
             "custom_prompts": [p.strip() for p in (config.custom_prompts or []) if p.strip()] or None

@@ -177,6 +177,12 @@
         .bench-auto-btn { margin: 0; padding: 8px 16px; font-size: 0.85em; }
         .bench-auto-hint { color: var(--faint); font-size: 0.78em; }
         .bench-auto-note { color: var(--green); font-size: 0.8em; font-weight: 600; }
+        .bench-how { margin: 14px 0 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); }
+        .bench-how summary { cursor: pointer; padding: 10px 14px; font-weight: 600; color: var(--accent); font-size: 0.88em; }
+        .bench-how summary:hover { color: #A94F30; }
+        .bench-how #bench_how_body { padding: 0 16px 12px; color: var(--text); font-size: 0.84em; line-height: 1.6; }
+        .bench-how #bench_how_body ul { margin: 6px 0 8px 18px; }
+        .bench-how #bench_how_body b { color: var(--ink); }
         .bench-card .form-group, .bench-card > div[style*="display:flex"] { padding-left: 20px; padding-right: 20px; }
         .bench-card > div[style*="display:flex"] { padding-bottom: 18px; }
         @media (max-width: 768px) {
@@ -400,6 +406,11 @@
             </div>
 
             <div class="chart-container"><canvas id="trainingChart"></canvas></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:-6px 0 12px;">
+                <button class="btn btn-outline" style="padding:7px 14px;font-size:0.82em;margin:0;" onclick="downloadChartPNG()" data-i18n="chart_dl_png">Скачать график (PNG)</button>
+                <button class="btn btn-outline" style="padding:7px 14px;font-size:0.82em;margin:0;" onclick="downloadChartCSV()" data-i18n="chart_dl_csv">Скачать данные (CSV)</button>
+                <span style="color:#8A857A;font-size:0.78em;" data-i18n="chart_full_hint">График показывает всю историю обучения с самого начала.</span>
+            </div>
 
             <div class="status-box">
                 <h3 data-i18n="status_training">Статус обучения</h3>
@@ -617,8 +628,18 @@
                                 <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_realwords" min="0" max="100" step="5" placeholder="70"></div></td>
                                 <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_real">—</span></td>
                             </tr>
+                            <tr>
+                                <td class="b-lbl"><span class="name" data-i18n="bench_m_coh">Связность речи</span><span class="sub" data-i18n="bench_s_coh">пары слов как в обучающем тексте, баллы · выше = лучше</span></td>
+                                <td class="b-hero"><span class="b-val" id="ap_res_coh">—</span><span class="b-cap" id="ap_st_coh"></span></td>
+                                <td class="b-plain"><div class="b-target"><input type="number" id="ap_min_coherence" min="0" max="100" step="5" placeholder="40"></div></td>
+                                <td class="b-ref"><span class="b-val b-val-ref" id="ap_base_coh">—</span></td>
+                            </tr>
                         </tbody>
                     </table>
+                    <details class="bench-how">
+                        <summary data-i18n="bench_how_title">Как считается рейтинг?</summary>
+                        <div id="bench_how_body"></div>
+                    </details>
                 </div>
                 <div class="form-group" style="margin-top:14px;">
                     <label data-i18n="autopilot_must_include">Модель ДОЛЖНА выдавать:</label>
@@ -705,7 +726,7 @@ function showTab(tabName) {
     if (tabName === 'catalog') loadCatalog();
     if (tabName === 'create') loadHWRecommendation();
     if (tabName === 'datasets') { loadModelsSelect(); loadDatasets(); }
-    if (tabName === 'train') { loadModelsSelect(); initChart(); startStatusUpdates(); }
+    if (tabName === 'train') { loadModelsSelect(); initChart(); startStatusUpdates(); loadTrainingSeries(); }
     if (tabName === 'generate') loadModelsSelect();
     if (tabName === 'compare') { loadModelsSelect(); }
     if (tabName === 'models') loadModelsList();
@@ -997,14 +1018,83 @@ async function updateTrainingStatus() {
             }).join('');
         }
         if (s.current_iteration > 0 && s.is_training) {
-            chartData.labels.push(s.current_iteration);
-            chartData.loss.push(s.current_loss);
-            chartData.reward.push(s.current_reward);
-            chartData.perplexity.push(s.perplexity || null);
-            if (chartData.labels.length > 100) { chartData.labels.shift(); chartData.loss.shift(); chartData.reward.shift(); chartData.perplexity.shift(); }
+            // Храним ВСЮ историю с итерации 0 — график больше не «прокручивается»
+            // и начало обучения всегда видно
+            if (s.current_iteration > lastChartIter) {
+                lastChartIter = s.current_iteration;
+                chartData.labels.push(s.current_iteration);
+                chartData.loss.push(s.current_loss);
+                chartData.reward.push(s.current_reward);
+                chartData.perplexity.push(s.perplexity || null);
+                // Прореживаем в 2 раза при переполнении, начало сохраняется
+                if (chartData.labels.length > 4000) {
+                    ['labels','loss','reward','perplexity'].forEach(function(k) {
+                        chartData[k] = chartData[k].filter(function(_, i) { return i % 2 === 0; });
+                    });
+                    rebindChartData();
+                }
+            }
             if (trainingChart) trainingChart.update();
         }
     } catch(e) {}
+}
+
+var lastChartIter = -1;
+
+function rebindChartData() {
+    if (!trainingChart) return;
+    trainingChart.data.labels = chartData.labels;
+    trainingChart.data.datasets[0].data = chartData.loss;
+    trainingChart.data.datasets[1].data = chartData.reward;
+    trainingChart.data.datasets[2].data = chartData.perplexity;
+}
+
+// Загрузить полную историю графика с сервера (с итерации 0) —
+// работает даже после перезагрузки страницы посреди обучения
+async function loadTrainingSeries() {
+    try {
+        var r = await fetch('/training_series');
+        var d = await r.json();
+        if (!d.series || d.series.length === 0) return;
+        chartData.labels = d.series.map(function(p) { return p.iteration; });
+        chartData.loss = d.series.map(function(p) { return p.loss; });
+        chartData.reward = d.series.map(function(p) { return p.reward; });
+        chartData.perplexity = d.series.map(function(p) { return p.perplexity || null; });
+        lastChartIter = chartData.labels[chartData.labels.length - 1];
+        rebindChartData();
+        if (trainingChart) trainingChart.update();
+    } catch(e) {}
+}
+
+// Скачать график картинкой (PNG на белом фоне)
+function downloadChartPNG() {
+    if (!trainingChart) return;
+    var src = trainingChart.canvas;
+    var c = document.createElement('canvas');
+    c.width = src.width; c.height = src.height;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(src, 0, 0);
+    var a = document.createElement('a');
+    a.download = 'training_chart.png';
+    a.href = c.toDataURL('image/png');
+    a.click();
+}
+
+// Скачать историю обучения таблицей (CSV — открывается в Excel)
+function downloadChartCSV() {
+    var rows = ['iteration,loss,reward,perplexity'];
+    for (var i = 0; i < chartData.labels.length; i++) {
+        rows.push([chartData.labels[i], chartData.loss[i], chartData.reward[i],
+                   (chartData.perplexity[i] === null || chartData.perplexity[i] === undefined) ? '' : chartData.perplexity[i]].join(','));
+    }
+    var blob = new Blob(['﻿' + rows.join('\n')], {type: 'text/csv;charset=utf-8'});
+    var a = document.createElement('a');
+    a.download = 'training_history.csv';
+    a.href = URL.createObjectURL(blob);
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(a.href); }, 2000);
 }
 
 // === GENERATION ===
@@ -1417,6 +1507,13 @@ var TRANSLATIONS = {
         bench_s_vocab: 'уникальных слов в тестах',
         bench_m_real: 'Настоящие слова',
         bench_s_real: 'осмысленные слова, баллы · выше = лучше',
+        bench_m_coh: 'Связность речи',
+        bench_s_coh: 'пары слов как в обучающем тексте, баллы · выше = лучше',
+        bench_how_title: 'Как считается рейтинг?',
+        bench_how_html: 'Модель пишет тексты по тестовым подсказкам, и каждый текст автоматически оценивается по 5 признакам:<ul><li><b>Чистота (25%)</b> — нет мусорных токенов &lt;UNK&gt;</li><li><b>Настоящие слова (20%)</b> — слова, а не обрывки и символы</li><li><b>Разнообразие словаря (20%)</b> — сколько разных слов использовано</li><li><b>Без повторов (15%)</b> — модель не зацикливается</li><li><b>Связность (20%)</b> — пары соседних слов встречаются в обучающем тексте. Именно это отсекает «салат из настоящих слов»: случайный набор слов связности не наберёт</li></ul>Итоговый балл 0–1 переводится в рейтинг по формуле Elo: 1500 = балл 0.5, потолка нет. Это автоматическая оценка ФОРМЫ текста, а не смысла — финальную проверку делайте глазами на вкладке «Генерация».',
+        chart_dl_png: 'Скачать график (PNG)',
+        chart_dl_csv: 'Скачать данные (CSV)',
+        chart_full_hint: 'График показывает всю историю обучения с самого начала.',
         bench_pass: 'цель достигнута',
         bench_fail: 'цель не достигнута',
         word_iteration: 'Итерация',
@@ -1643,6 +1740,13 @@ var TRANSLATIONS = {
         bench_s_vocab: 'unique words in tests',
         bench_m_real: 'Real words',
         bench_s_real: 'meaningful words, points · higher = better',
+        bench_m_coh: 'Speech coherence',
+        bench_s_coh: 'word pairs seen in training text, points · higher = better',
+        bench_how_title: 'How is the rating measured?',
+        bench_how_html: 'The model writes texts from test prompts, and each text is scored automatically on 5 signals:<ul><li><b>Cleanliness (25%)</b> — no garbage &lt;UNK&gt; tokens</li><li><b>Real words (20%)</b> — words, not fragments or symbols</li><li><b>Vocabulary diversity (20%)</b> — how many distinct words are used</li><li><b>No repetition (15%)</b> — the model does not loop</li><li><b>Coherence (20%)</b> — adjacent word pairs actually occur in the training text. This is what stops "real-word salad": random words will not score coherence</li></ul>The composite 0–1 score is converted to a rating with the Elo formula: 1500 = score 0.5, no ceiling. This is an automatic check of text FORM, not meaning — do the final check with your own eyes on the Generation tab.',
+        chart_dl_png: 'Download chart (PNG)',
+        chart_dl_csv: 'Download data (CSV)',
+        chart_full_hint: 'The chart shows the entire training history from the very beginning.',
         bench_pass: 'target met',
         bench_fail: 'target not met',
         word_iteration: 'Iteration',
@@ -1786,6 +1890,7 @@ function startAutopilot() {
     var maxRepRaw = document.getElementById('ap_max_rep').value;
     var minVocabRaw = document.getElementById('ap_min_vocab').value;
     var minRealRaw = document.getElementById('ap_min_realwords').value;
+    var minCohRaw = document.getElementById('ap_min_coherence').value;
     var mustInclude = (document.getElementById('ap_must_include').value || '').trim();
     var mustAvoid = (document.getElementById('ap_must_avoid').value || '').trim();
     var customPromptsRaw = (document.getElementById('ap_custom_prompts').value || '').trim();
@@ -1807,6 +1912,7 @@ function startAutopilot() {
         max_repetition: maxRepRaw !== '' ? parseFloat(maxRepRaw) / 100 : null,
         min_vocabulary: minVocabRaw !== '' ? parseInt(minVocabRaw) : null,
         min_real_word_ratio: minRealRaw !== '' ? parseFloat(minRealRaw) / 100 : null,
+        min_coherence: minCohRaw !== '' ? parseFloat(minCohRaw) / 100 : null,
         must_include: mustInclude || null,
         must_avoid: mustAvoid || null,
         custom_prompts: customPrompts
@@ -1866,13 +1972,13 @@ function pollAutopilot() {
 // ─── Benchmark target table (Anthropic model-card style) ───
 
 function resetBenchTable() {
-    ['overall','improvement','unk','rep','vocab','real'].forEach(function(k) {
+    ['overall','improvement','unk','rep','vocab','real','coh'].forEach(function(k) {
         var res = document.getElementById('ap_res_' + k);
         if (res) res.textContent = '—';
         var st = document.getElementById('ap_st_' + k);
         if (st) { st.textContent = ''; st.className = 'b-cap'; }
     });
-    ['overall','unk','rep','vocab','real'].forEach(function(k) {
+    ['overall','unk','rep','vocab','real','coh'].forEach(function(k) {
         var base = document.getElementById('ap_base_' + k);
         if (base) base.textContent = '—';
     });
@@ -1911,6 +2017,7 @@ function autoFillTargets() {
     document.getElementById('ap_max_rep').value = Math.round((1 - tf) * 100);
     document.getElementById('ap_min_vocab').value = Math.round(tf * 100);
     document.getElementById('ap_min_realwords').value = Math.round(tf * 100);
+    document.getElementById('ap_min_coherence').value = Math.round(tf * 70);
     var note = document.getElementById('ap_auto_note');
     if (note) { note.style.display = 'inline'; note.textContent = t('bench_auto_done'); }
 }
@@ -1942,6 +2049,7 @@ function updateBenchTable(sb, modelName) {
     document.getElementById('ap_base_rep').textContent = fmtBenchPct(base.avg_repetition);
     document.getElementById('ap_base_vocab').textContent = fmtBenchInt(base.vocabulary_diversity);
     document.getElementById('ap_base_real').textContent = fmtBenchPct(base.real_word_ratio);
+    document.getElementById('ap_base_coh').textContent = fmtBenchPct(base.coherence);
 
     // Колонка «Результат» — рейтинг Elo-шкалой, остальное баллами 0–100
     document.getElementById('ap_res_overall').textContent = fmtBenchInt(latestRating);
@@ -1953,6 +2061,7 @@ function updateBenchTable(sb, modelName) {
     document.getElementById('ap_res_rep').textContent = fmtBenchPct(latest.avg_repetition);
     document.getElementById('ap_res_vocab').textContent = fmtBenchInt(latest.vocabulary_diversity);
     document.getElementById('ap_res_real').textContent = fmtBenchPct(latest.real_word_ratio);
+    document.getElementById('ap_res_coh').textContent = fmtBenchPct(latest.coherence);
 
     // Подписи ✓/✗ под результатом — только когда есть результат после обучения.
     // Рейтинг и словарь сравниваются как есть, доли бэкенда (0..1) — через /100.
@@ -1971,6 +2080,13 @@ function updateBenchTable(sb, modelName) {
     judge('ap_st_rep', document.getElementById('ap_max_rep').value, latest.avg_repetition, true, true);
     judge('ap_st_vocab', document.getElementById('ap_min_vocab').value, latest.vocabulary_diversity, false, false);
     judge('ap_st_real', document.getElementById('ap_min_realwords').value, latest.real_word_ratio, false, true);
+    judge('ap_st_coh', document.getElementById('ap_min_coherence').value, latest.coherence, false, true);
+}
+
+// Заполняет блок «Как считается рейтинг?» (перерисовывается при смене языка)
+function renderBenchHow() {
+    var el = document.getElementById('bench_how_body');
+    if (el) el.innerHTML = t('bench_how_html');
 }
 
 function stopAutopilot() {
@@ -2002,6 +2118,7 @@ function switchLanguage(lang) {
         }
     });
     // Update dynamic content using t()
+    if (typeof renderBenchHow === 'function') renderBenchHow();
     if (typeof REWARD_LABELS !== 'undefined') {
         REWARD_LABELS.diversity = t('rl_diversity');
         REWARD_LABELS.coherence = t('rl_coherence');
@@ -2020,6 +2137,7 @@ window.addEventListener('load', function() {
     loadModelsSelect();
     initChart();
     startStatusUpdates();
+    loadTrainingSeries();
     checkWizard();
     // Restore saved language — always apply to set REWARD_LABELS etc.
     switchLanguage(currentLang);

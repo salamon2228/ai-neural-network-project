@@ -20,8 +20,12 @@ class DatasetManager:
     def _load_db(self) -> Dict:
         """Загрузить базу данных связей"""
         if self.db_path.exists():
-            with open(self.db_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            # utf-8-sig: переживает BOM (его добавляют Блокнот и PowerShell)
+            try:
+                with open(self.db_path, 'r', encoding='utf-8-sig') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                print(f"WARNING: datasets_db.json is corrupted ({e}); starting with an empty database")
         return {
             "models": {},  # model_name -> {"datasets": [...], "created": "..."}
             "datasets": {}  # dataset_name -> {"path": "...", "size": 123, "attached_to": [...]}

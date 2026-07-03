@@ -1131,6 +1131,29 @@ class ToolExecutor:
         except Exception as e:
             return {"error": f"Generation failed: {str(e)}"}
 
+    def _get_reference_bigrams(self, model_name: str):
+        """Множество пар слов из обучающих текстов модели (для метрики связности).
+        Кэшируется по имени модели. None, если данных нет."""
+        cache = getattr(self, "_ref_bigrams_cache", None)
+        if cache is None:
+            cache = {}
+            self._ref_bigrams_cache = cache
+        if model_name in cache:
+            return cache[model_name]
+        bigrams = None
+        try:
+            import re as _re
+            texts = self.dm.load_attached_texts(model_name)
+            if texts:
+                joined = " ".join(texts[:500])[:500000].lower()
+                words = _re.findall(r"[а-яёa-z]{2,}", joined)
+                if len(words) > 50:
+                    bigrams = set(zip(words, words[1:]))
+        except Exception:
+            bigrams = None
+        cache[model_name] = bigrams
+        return bigrams
+
     def _evaluate_model(self, model_name: str, language: str = "en", prompts: list = None) -> dict:
         """Run comprehensive quality evaluation on a trained model."""
         try:
@@ -1146,6 +1169,14 @@ class ToolExecutor:
             total_unique_words = set()
             real_word_count = 0
             total_word_count = 0
+
+            # Референсные биграммы из обучающих данных модели — для проверки
+            # связности: настоящий текст состоит из знакомых ПАР слов, а
+            # случайный «салат из слов» — нет
+            import re as _re
+            ref_bigrams = self._get_reference_bigrams(model_name)
+            known_pairs = 0
+            total_pairs = 0
 
             for prompt in prompts[:5]:
                 result = self._generate_sample(model_name=model_name, prompt=prompt, max_length=80, temperature=0.8)
@@ -1169,6 +1200,13 @@ class ToolExecutor:
                 word_set = set(real_words)
                 repetition_ratio = 1.0 - (len(word_set) / max(len(real_words), 1))
 
+                # Связность: доля пар слов, встречающихся в обучающем тексте
+                if ref_bigrams:
+                    gen_words = _re.findall(r"[а-яёa-z]{2,}", text.lower())
+                    pairs = list(zip(gen_words, gen_words[1:]))
+                    total_pairs += len(pairs)
+                    known_pairs += sum(1 for p in pairs if p in ref_bigrams)
+
                 samples.append({
                     "prompt": prompt,
                     "generated": text[:300],
@@ -1183,6 +1221,7 @@ class ToolExecutor:
             real_word_ratio = real_word_count / max(total_word_count, 1)
             vocabulary_diversity = len(total_unique_words)
             avg_repetition = sum(s.get("repetition_ratio", 0) for s in samples if "error" not in s) / max(len([s for s in samples if "error" not in s]), 1)
+            coherence = (known_pairs / total_pairs) if (ref_bigrams and total_pairs > 0) else None
 
             # Determine verdict
             if unk_ratio > 0.5:
@@ -1194,6 +1233,10 @@ class ToolExecutor:
             elif real_word_ratio < 0.5:
                 verdict = "BAD"
                 advice = "Too few real words. Model needs more training iterations."
+            elif coherence is not None and coherence < 0.2:
+                verdict = "BAD"
+                advice = ("Word salad: words are real but their sequences almost never occur in the "
+                          "training text — the model has not learned word order yet. Train longer.")
             elif avg_repetition > 0.8:
                 verdict = "BAD"
                 advice = "Model just repeats the same words. Need more diverse training data or lower temperature."
@@ -1216,18 +1259,30 @@ class ToolExecutor:
                 verdict = "MEDIOCRE"
                 advice = "Loss is still high ({:.2f}). More iterations would improve quality.".format(loss)
 
-            # Composite overall_score in [0, 1] — higher is better
-            # Reward: low unk, high real-word ratio, good diversity, not too repetitive
+            # Composite overall_score in [0, 1] — higher is better.
+            # Coherence (доля знакомых пар слов) не даёт «салату из настоящих
+            # слов» получить высокий балл: без неё случайные слова набирали ~75.
             div_score = min(vocabulary_diversity / 100.0, 1.0)
             rep_score = max(0.0, 1.0 - avg_repetition)
             unk_score = max(0.0, 1.0 - unk_ratio * 2)  # heavy penalty for <UNK>
-            overall_score = round(
-                0.30 * unk_score +
-                0.25 * real_word_ratio +
-                0.25 * div_score +
-                0.20 * rep_score,
-                4
-            )
+            if coherence is not None:
+                overall_score = round(
+                    0.25 * unk_score +
+                    0.20 * real_word_ratio +
+                    0.20 * div_score +
+                    0.15 * rep_score +
+                    0.20 * coherence,
+                    4
+                )
+            else:
+                # Нет обучающих данных для референса — старая формула
+                overall_score = round(
+                    0.30 * unk_score +
+                    0.25 * real_word_ratio +
+                    0.25 * div_score +
+                    0.20 * rep_score,
+                    4
+                )
 
             return {
                 "verdict": verdict,
@@ -1239,6 +1294,7 @@ class ToolExecutor:
                     "real_word_ratio": round(real_word_ratio, 3),
                     "vocabulary_diversity": vocabulary_diversity,
                     "avg_repetition": round(avg_repetition, 3),
+                    "coherence": round(coherence, 3) if coherence is not None else None,
                     "training_loss": round(loss, 4),
                     "unk_score": round(unk_score, 3),
                     "diversity_score": round(div_score, 3),
@@ -1412,6 +1468,7 @@ class ToolExecutor:
             ("max_repetition", "avg_repetition", "max"),
             ("min_vocabulary", "vocabulary_diversity", "min"),
             ("min_real_word_ratio", "real_word_ratio", "min"),
+            ("min_coherence", "coherence", "min"),
         ]
         for spec_key, score_key, direction in metric_specs:
             target_val = spec.get(spec_key)
@@ -1709,6 +1766,8 @@ class LLMAutopilot:
             spec_lines.append(f"- MINIMUM vocabulary_diversity (unique words in samples): ≥ {spec['min_vocabulary']}")
         if spec.get("min_real_word_ratio") is not None:
             spec_lines.append(f"- MINIMUM real_word_ratio: ≥ {spec['min_real_word_ratio']}")
+        if spec.get("min_coherence") is not None:
+            spec_lines.append(f"- MINIMUM coherence (share of word pairs seen in training data): ≥ {spec['min_coherence']}")
         if spec.get("must_include"):
             spec_lines.append(f"- Output MUST include/exhibit: {spec['must_include']}")
         if spec.get("must_avoid"):
